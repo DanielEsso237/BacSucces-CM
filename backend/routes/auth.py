@@ -2,64 +2,99 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from models import User
-from database import SessionLocal, engine
-from schemas import UserCreate, UserLogin
-from utils.security import hash_password, verify_password, create_access_token
+from database import get_db
+from schemas import StudentRegister, TeacherRegister, UserLogin, TokenResponse, UserOut, AdminUserUpdate
+from utils.security import (
+    hash_password, verify_password, create_access_token,
+    require_active, require_admin
+)
 
-router = APIRouter()
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register")
-def register(user: UserCreate, db: Session = Depends(get_db)):
-
-    existing = db.query(User).filter(User.email == user.email).first()
-    if existing:
+@router.post("/register/student", response_model=dict)
+def register_student(data: StudentRegister, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
 
-    status = "ACTIVE"
-    if user.role == "TEACHER":
-        status = "PENDING"  
-
-    new_user = User(
-        email=user.email,
-        full_name=user.full_name,
-        hashed_password=hash_password(user.password),
-        role=user.role,
-        status=status
+    user = User(
+        email=data.email,
+        full_name=data.full_name,
+        hashed_password=hash_password(data.password),
+        role="STUDENT",
+        status="ACTIVE",
     )
-
-    db.add(new_user)
+    db.add(user)
     db.commit()
-    db.refresh(new_user)
-
-    return {"message": "Compte créé", "status": status}
+    return {"message": "Compte élève créé avec succès"}
 
 
-@router.post("/login")
-def login(user: UserLogin, db: Session = Depends(get_db)):
+@router.post("/register/teacher", response_model=dict)
+def register_teacher(data: TeacherRegister, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.email == data.email).first():
+        raise HTTPException(status_code=400, detail="Email déjà utilisé")
 
-    db_user = db.query(User).filter(User.email == user.email).first()
+    if not data.teacher_justification.strip():
+        raise HTTPException(status_code=400, detail="La justification est obligatoire")
 
-    if not db_user:
-        raise HTTPException(status_code=400, detail="Utilisateur introuvable")
+    user = User(
+        email=data.email,
+        full_name=data.full_name,
+        hashed_password=hash_password(data.password),
+        role="TEACHER",
+        status="PENDING",
+        teacher_justification=data.teacher_justification,
+    )
+    db.add(user)
+    db.commit()
+    return {"message": "Demande envoyée, en attente de validation par l'admin"}
 
-    if not verify_password(user.password, db_user.hashed_password):
-        raise HTTPException(status_code=400, detail="Mot de passe incorrect")
 
-    if db_user.status != "ACTIVE":
-        raise HTTPException(status_code=403, detail="Compte non actif")
+@router.post("/login", response_model=TokenResponse)
+def login(data: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == data.email).first()
 
-    token = create_access_token({"sub": db_user.email, "role": db_user.role})
+    if not user or not verify_password(data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
 
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "role": db_user.role
-    }
+    if user.status == "PENDING":
+        raise HTTPException(status_code=403, detail="Compte en attente de validation admin")
+
+    if user.status == "SUSPENDED":
+        raise HTTPException(status_code=403, detail="Compte suspendu")
+
+    token = create_access_token({"sub": user.email, "role": user.role})
+    return {"access_token": token, "role": user.role, "user": user}
+
+
+@router.get("/me", response_model=UserOut)
+def me(current_user=Depends(require_active)):
+    return current_user
+
+
+@router.get("/admin/pending-teachers", response_model=list[UserOut])
+def list_pending_teachers(admin=Depends(require_admin), db: Session = Depends(get_db)):
+    return db.query(User).filter(User.role == "TEACHER", User.status == "PENDING").all()
+
+
+@router.patch("/admin/users/{user_id}", response_model=UserOut)
+def update_user(user_id: int, data: AdminUserUpdate, admin=Depends(require_admin), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    if data.status:
+        allowed_statuses = ("ACTIVE", "PENDING", "SUSPENDED")
+        if data.status not in allowed_statuses:
+            raise HTTPException(status_code=400, detail=f"Statut invalide. Valeurs acceptées : {allowed_statuses}")
+        user.status = data.status
+
+    if data.role:
+        allowed_roles = ("STUDENT", "TEACHER", "ADMIN")
+        if data.role not in allowed_roles:
+            raise HTTPException(status_code=400, detail=f"Rôle invalide. Valeurs acceptées : {allowed_roles}")
+        user.role = data.role
+
+    db.commit()
+    db.refresh(user)
+    return user
