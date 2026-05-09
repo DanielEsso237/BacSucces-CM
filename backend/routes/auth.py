@@ -14,11 +14,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register/student", response_model=dict)
 def register_student(data: StudentRegister, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == data.email).first():
+    email = data.email.lower()
+    if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
 
     user = User(
-        email=data.email,
+        email=email,
         full_name=data.full_name,
         hashed_password=hash_password(data.password),
         role="STUDENT",
@@ -31,14 +32,15 @@ def register_student(data: StudentRegister, db: Session = Depends(get_db)):
 
 @router.post("/register/teacher", response_model=dict)
 def register_teacher(data: TeacherRegister, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == data.email).first():
+    email = data.email.lower()
+    if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
 
     if not data.teacher_justification.strip():
         raise HTTPException(status_code=400, detail="La justification est obligatoire")
 
     user = User(
-        email=data.email,
+        email=email,
         full_name=data.full_name,
         hashed_password=hash_password(data.password),
         role="TEACHER",
@@ -52,7 +54,8 @@ def register_teacher(data: TeacherRegister, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(data: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == data.email).first()
+    email = data.email.lower()
+    user = db.query(User).filter(User.email == email).first()
 
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")

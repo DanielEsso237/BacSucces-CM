@@ -24,6 +24,7 @@ class UserOut(BaseModel):
     role: str
     status: str
     created_at: datetime
+    teacher_justification: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -36,3 +37,16 @@ class TokenResponse(BaseModel):
 class AdminUserUpdate(BaseModel):
     status: Optional[str] = None
     role: Optional[str] = None
+
+class DocumentOut(BaseModel):
+    id: int
+    title: str
+    description: Optional[str] = None
+    subject: str
+    level: str
+    doc_type: str
+    author_id: int
+    created_at: datetime
+    author: UserOut
+
+    model_config = {"from_attributes": True}
