@@ -8,8 +8,8 @@ from utils.security import hash_password
 
 Base.metadata.create_all(bind=engine)
 
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@bacSucces.cm")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "ChangeMe123!")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "essodaniel55@gmail.com")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "05juin20016")
 ADMIN_NAME = os.getenv("ADMIN_NAME", "Administrateur")
 
 db = SessionLocal()
