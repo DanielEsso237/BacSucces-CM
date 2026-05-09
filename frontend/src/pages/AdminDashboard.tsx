@@ -262,8 +262,6 @@ function DocumentCard({ doc, token }: { doc: Document; token: string }) {
         <span className="tag">{doc.subject}</span>
         <span className="tag">{doc.level}</span>
       </div>
-
-      {/* CORRECTION ICI */}
       <a
         className="btn-download"
         href={`${downloadUrl(doc.id)}?token=${token}`}
