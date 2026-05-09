@@ -1,6 +1,10 @@
 # backend
 backend/venv/
 backend/__pycache__/
+backend/**/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
 
 # frontend
 frontend/node_modules/
@@ -8,9 +12,13 @@ frontend/dist/
 
 # env
 .env
+*.env
 
 # system
 .DS_Store
 
 # database
 backend/*.db
+
+# uploads
+backend/uploads/
