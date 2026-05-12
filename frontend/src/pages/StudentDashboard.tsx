@@ -51,7 +51,7 @@ function StudentDashboard() {
       <header className="dashboard-header">
         <div className="dashboard-logo">BacSuccès-CM</div>
         <div className="dashboard-user">
-          <span>👋 {user?.full_name}</span>
+          <span>{user?.full_name}</span>
           <span className="badge badge-student">Élève</span>
           <button className="btn-logout" onClick={logout}>Déconnexion</button>
         </div>
@@ -97,7 +97,7 @@ function StudentDashboard() {
               <select value={docType} onChange={e => setDocType(e.target.value)}>
                 <option value="">Tous</option>
                 <option value="EXAM">Épreuves</option>
-                <option value="COURSE">Cours</option>
+                <option value="ANNALES">Annales</option>
               </select>
             </div>
 
@@ -156,13 +156,24 @@ function StudentDashboard() {
   )
 }
 
+function getDocTypeMeta(docType: string): { label: string; badgeClass: string } {
+  switch (docType) {
+    case 'EXAM':
+      return { label: 'Épreuve', badgeClass: 'badge-exam' }
+    case 'ANNALES':
+      return { label: 'Annales', badgeClass: 'badge-annales' }
+    default:
+      return { label: docType, badgeClass: 'badge-exam' }
+  }
+}
+
 function StudentDocumentCard({ doc, onRead }: { doc: Document; onRead: () => void }) {
+  const { label, badgeClass } = getDocTypeMeta(doc.doc_type)
+
   return (
     <div className="document-card">
       <div className="document-card-header">
-        <span className={`badge ${doc.doc_type === 'EXAM' ? 'badge-exam' : 'badge-course'}`}>
-          {doc.doc_type === 'EXAM' ? 'Épreuve' : 'Cours'}
-        </span>
+        <span className={`badge ${badgeClass}`}>{label}</span>
         <span className="document-date">
           {new Date(doc.created_at).toLocaleDateString('fr-FR')}
         </span>
@@ -185,8 +196,6 @@ function StudentDocumentCard({ doc, onRead }: { doc: Document; onRead: () => voi
         <button className="btn-read" onClick={onRead}>
           Lire en ligne
         </button>
-
-        {/* ✅ FIX */}
         <a
           className="btn-download-small"
           href={downloadUrl(doc.id)}
@@ -215,7 +224,6 @@ function DocumentViewer({ doc, token, onClose }: { doc: Document; token: string;
         </div>
 
         <div className="viewer-actions">
-          {/* ✅ FIX */}
           <a
             className="btn-download-small"
             href={downloadUrl(doc.id)}

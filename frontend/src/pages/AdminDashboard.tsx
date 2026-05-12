@@ -70,7 +70,7 @@ function AdminDashboard() {
       <header className="dashboard-header">
         <div className="dashboard-logo">BacSuccès-CM</div>
         <div className="dashboard-user">
-          <span>👋 {user?.full_name}</span>
+          <span>{user?.full_name}</span>
           <span className="badge badge-admin">Admin</span>
           <button className="btn-logout" onClick={logout}>Déconnexion</button>
         </div>
@@ -86,7 +86,7 @@ function AdminDashboard() {
 
         {!isLoading && teachers.length === 0 && (
           <div className="empty-state">
-            <p>Aucune demande en attente 🎉</p>
+            <p>Aucune demande en attente</p>
           </div>
         )}
 

@@ -164,9 +164,9 @@
   color: var(--red);
 }
 
-.badge-course {
-  background: #e0f0ff;
-  color: #1a6abf;
+.badge-annales {
+  background: #ede9fe;
+  color: #6d28d9;
 }
 
 .btn-download {
@@ -269,7 +269,6 @@
   border: 1px solid #b7dfc9;
 }
 
-
 .pending-list {
   display: flex;
   flex-direction: column;
@@ -343,7 +342,6 @@
   background: #fdecea;
 }
 
-
 .pending-justification {
   font-size: 13px;
   color: var(--gray-600);
@@ -384,8 +382,6 @@
   display: flex;
   justify-content: center;
 }
-
-
 
 .student-layout {
   display: flex;
@@ -592,4 +588,9 @@
   overflow: hidden;
   padding: 16px;
   background: var(--gray-100);
+}
+
+.badge-annales {
+  background: #ede9fe;
+  color: #6d28d9;
 }

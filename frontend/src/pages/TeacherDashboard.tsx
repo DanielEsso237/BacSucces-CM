@@ -23,7 +23,7 @@ function TeacherDashboard() {
       <header className="dashboard-header">
         <div className="dashboard-logo">BacSuccès-CM</div>
         <div className="dashboard-user">
-          <span>👋 {user?.full_name}</span>
+          <span>{user?.full_name}</span>
           <span className="badge badge-teacher">Enseignant</span>
           <button className="btn-logout" onClick={logout}>Déconnexion</button>
         </div>
@@ -216,7 +216,7 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
               <select value={docType} onChange={e => setDocType(e.target.value)} required>
                 <option value="">Choisir...</option>
                 <option value="EXAM">Épreuve</option>
-                <option value="COURSE">Cours</option>
+                <option value="ANNALES">Annales</option>
               </select>
             </div>
           </div>
@@ -247,11 +247,14 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
 }
 
 function DocumentCard({ doc }: { doc: Document }) {
+  const docTypeLabel = doc.doc_type === 'EXAM' ? 'Épreuve' : 'Annales'
+  const docTypeBadge = doc.doc_type === 'EXAM' ? 'badge-exam' : 'badge-annales'
+
   return (
     <div className="document-card">
       <div className="document-card-header">
-        <span className={`badge ${doc.doc_type === 'EXAM' ? 'badge-exam' : 'badge-course'}`}>
-          {doc.doc_type === 'EXAM' ? 'Épreuve' : 'Cours'}
+        <span className={`badge ${docTypeBadge}`}>
+          {docTypeLabel}
         </span>
         <span className="document-date">
           {new Date(doc.created_at).toLocaleDateString('fr-FR')}

@@ -15,7 +15,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 SUBJECTS = ["Mathématiques", "Physique", "SVT", "Français", "Anglais", "Histoire-Géo", "Philosophie", "Informatique"]
 LEVELS = ["6ème", "5ème", "4ème", "3ème", "2nde", "1ère", "Terminale"]
-DOC_TYPES = ["EXAM", "COURSE"]
+DOC_TYPES = ["EXAM", "ANNALES"]
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
