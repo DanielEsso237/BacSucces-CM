@@ -4,11 +4,8 @@ import RegisterStudent from './pages/RegisterStudent'
 import RegisterTeacher from './pages/RegisterTeacher'
 import TeacherDashboard from './pages/TeacherDashboard'
 import AdminDashboard from './pages/AdminDashboard'
+import StudentDashboard from './pages/StudentDashboard'
 import ProtectedRoute from './components/ProtectedRoute'
-
-function StudentDashboard() {
-  return <h1>Dashboard Élève — bientôt</h1>
-}
 
 function App() {
   return (
