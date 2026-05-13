@@ -5,58 +5,80 @@ import type { Document, Filters } from '../api/documents'
 import { Document as PDFDocument, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
-import '../styles/dashboard.css'
+import '../styles/teacher.css'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url,
 ).toString()
 
-type Tab = 'mes-documents' | 'uploader'
+type Tab = 'docs' | 'upload'
+
+function docTypeMeta(type: string) {
+  switch (type) {
+    case 'EXAM': return { label: 'Épreuve', cls: 'chip-exam' }
+    case 'ANNALES': return { label: 'Annales', cls: 'chip-annales' }
+    default: return { label: type, cls: 'chip-exam' }
+  }
+}
 
 function TeacherDashboard() {
   const { user, token, logout } = useAuth()
-  const [tab, setTab] = useState<Tab>('mes-documents')
+  const [tab, setTab] = useState<Tab>('docs')
 
   return (
-    <div className="dashboard-page">
-      <header className="dashboard-header">
-        <div className="dashboard-logo">BacSuccès-CM</div>
-        <div className="dashboard-user">
-          <span>{user?.full_name}</span>
-          <span className="badge badge-teacher">Enseignant</span>
-          <button className="btn-logout" onClick={logout}>Déconnexion</button>
+    <div className="td-root">
+      <aside className="td-sidebar">
+        <div className="td-brand">
+          <span className="td-brand-icon">B</span>
+          <span className="td-brand-name">BacSuccès</span>
         </div>
-      </header>
 
-      <div className="dashboard-tabs">
-        <button
-          className={`tab ${tab === 'mes-documents' ? 'active' : ''}`}
-          onClick={() => setTab('mes-documents')}
-        >
-          Mes documents
-        </button>
-        <button
-          className={`tab ${tab === 'uploader' ? 'active' : ''}`}
-          onClick={() => setTab('uploader')}
-        >
-          Uploader un document
-        </button>
-      </div>
+        <nav className="td-nav">
+          <span className="td-nav-label">Menu</span>
+          <button
+            className={`td-nav-item ${tab === 'docs' ? 'active' : ''}`}
+            onClick={() => setTab('docs')}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Mes documents
+          </button>
+          <button
+            className={`td-nav-item ${tab === 'upload' ? 'active' : ''}`}
+            onClick={() => setTab('upload')}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Uploader un document
+          </button>
+        </nav>
 
-      <main className="dashboard-main">
-        {tab === 'mes-documents' && token && user && (
-          <MesDocuments token={token} userId={user.id} />
+        <div className="td-sidebar-footer">
+          <div className="td-user-block">
+            <div className="td-avatar">{user?.full_name?.charAt(0).toUpperCase()}</div>
+            <div className="td-user-info">
+              <span className="td-user-name">{user?.full_name}</span>
+              <span className="td-user-role">Enseignant</span>
+            </div>
+          </div>
+          <button className="td-logout-btn" onClick={logout} title="Déconnexion">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </div>
+      </aside>
+
+      <main className="td-main">
+        {tab === 'docs' && token && user && (
+          <MesDocuments token={token} userId={user.id} onUpload={() => setTab('upload')} />
         )}
-        {tab === 'uploader' && token && (
-          <UploadForm token={token} onSuccess={() => setTab('mes-documents')} />
+        {tab === 'upload' && token && (
+          <UploadForm token={token} onSuccess={() => setTab('docs')} />
         )}
       </main>
     </div>
   )
 }
 
-function MesDocuments({ token, userId }: { token: string; userId: number }) {
+function MesDocuments({ token, userId, onUpload }: { token: string; userId: number; onUpload: () => void }) {
   const [documents, setDocuments] = useState<Document[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -68,23 +90,74 @@ function MesDocuments({ token, userId }: { token: string; userId: number }) {
       .finally(() => setIsLoading(false))
   }, [token, userId])
 
-  if (isLoading) return <p className="loading">Chargement...</p>
-  if (error) return <p className="error">{error}</p>
-
-  if (documents.length === 0) {
+  if (isLoading) {
     return (
-      <div className="empty-state">
-        <p>Tu n'as pas encore uploadé de documents.</p>
+      <div>
+        <div className="td-page-header">
+          <div>
+            <h1 className="td-page-title">Mes documents</h1>
+            <p className="td-page-sub">Tous vos documents publiés</p>
+          </div>
+        </div>
+        <div className="td-grid">
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="td-skeleton" />)}
+        </div>
       </div>
     )
   }
 
+  if (error) return <div className="td-error-banner">{error}</div>
+
   return (
-    <div className="documents-grid">
-      {documents.map(doc => (
-        <DocumentCard key={doc.id} doc={doc} />
-      ))}
+    <div>
+      <div className="td-page-header">
+        <div>
+          <h1 className="td-page-title">Mes documents</h1>
+          <p className="td-page-sub">{documents.length} document{documents.length !== 1 ? 's' : ''} publié{documents.length !== 1 ? 's' : ''}</p>
+        </div>
+        <button className="td-btn-primary" onClick={onUpload}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nouveau document
+        </button>
+      </div>
+
+      {documents.length === 0 ? (
+        <div className="td-empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <p>Aucun document publié pour le moment</p>
+          <button className="td-btn-primary" onClick={onUpload}>Publier mon premier document</button>
+        </div>
+      ) : (
+        <div className="td-grid">
+          {documents.map(doc => <DocCard key={doc.id} doc={doc} />)}
+        </div>
+      )}
     </div>
+  )
+}
+
+function DocCard({ doc }: { doc: Document }) {
+  const { label, cls } = docTypeMeta(doc.doc_type)
+
+  return (
+    <article className="td-card">
+      <div className="td-card-top">
+        <span className={`td-chip ${cls}`}>{label}</span>
+        <span className="td-card-date">
+          {new Date(doc.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </span>
+      </div>
+      <h3 className="td-card-title">{doc.title}</h3>
+      {doc.description && <p className="td-card-desc">{doc.description}</p>}
+      <div className="td-card-tags">
+        <span className="td-tag">{doc.subject}</span>
+        <span className="td-tag">{doc.level}</span>
+      </div>
+      <a className="td-btn-download" href={downloadUrl(doc.id)} target="_blank" rel="noopener noreferrer">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Télécharger le PDF
+      </a>
+    </article>
   )
 }
 
@@ -101,46 +174,29 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
   const [success, setSuccess] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  useEffect(() => {
-    getFilters().then(setFilters)
-  }, [])
+  useEffect(() => { getFilters().then(setFilters) }, [])
 
   useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
-    }
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }
   }, [previewUrl])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0] || null
-
     if (selected && selected.type !== 'application/pdf') {
-      setError('Seuls les PDF sont autorisés')
+      setError('Seuls les fichiers PDF sont acceptés')
       return
     }
-
     setFile(selected)
     setError(null)
-
-    if (selected) {
-      setPreviewUrl(URL.createObjectURL(selected))
-    } else {
-      setPreviewUrl(null)
-    }
+    setPreviewUrl(selected ? URL.createObjectURL(selected) : null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-
-    if (!file) {
-      setError('Sélectionne un fichier PDF')
-      return
-    }
-
+    if (!file) { setError('Sélectionne un fichier PDF'); return }
     setError(null)
     setSuccess(null)
     setIsLoading(true)
-
     const formData = new FormData()
     formData.append('title', title)
     formData.append('description', description)
@@ -148,10 +204,9 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
     formData.append('level', level)
     formData.append('doc_type', docType)
     formData.append('file', file)
-
     try {
       await uploadDocument(token, formData)
-      setSuccess('Document uploadé avec succès !')
+      setSuccess('Document publié avec succès !')
       setTimeout(onSuccess, 1500)
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Une erreur est survenue')
@@ -160,126 +215,95 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
     }
   }
 
-  if (!filters) return <p className="loading">Chargement...</p>
+  if (!filters) return <div className="td-loading">Chargement…</div>
 
   return (
-    <div className="upload-layout">
-      <div className="upload-form-container">
-        <h2>Uploader un document</h2>
-
-        {error && <div className="alert alert-error">{error}</div>}
-        {success && <div className="alert alert-success">{success}</div>}
-
-        <form className="upload-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Titre</label>
-            <input
-              type="text"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Description</label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              rows={3}
-            />
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Matière</label>
-              <select value={subject} onChange={e => setSubject(e.target.value)} required>
-                <option value="">Choisir...</option>
-                {filters.subjects.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Niveau</label>
-              <select value={level} onChange={e => setLevel(e.target.value)} required>
-                <option value="">Choisir...</option>
-                {filters.levels.map(l => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Type</label>
-              <select value={docType} onChange={e => setDocType(e.target.value)} required>
-                <option value="">Choisir...</option>
-                <option value="EXAM">Épreuve</option>
-                <option value="ANNALES">Annales</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>Fichier PDF</label>
-            <input type="file" accept=".pdf" onChange={handleFileChange} required />
-          </div>
-
-          <button className="btn-primary" type="submit" disabled={isLoading}>
-            {isLoading ? 'Upload en cours...' : 'Uploader'}
-          </button>
-        </form>
-      </div>
-
-      {previewUrl && (
-        <div className="pdf-preview-container">
-          <h3>Aperçu du PDF</h3>
-          <div className="pdf-preview">
-            <PDFDocument file={previewUrl}>
-              <Page pageNumber={1} width={340} />
-            </PDFDocument>
-          </div>
+    <div>
+      <div className="td-page-header">
+        <div>
+          <h1 className="td-page-title">Uploader un document</h1>
+          <p className="td-page-sub">Remplissez les informations et sélectionnez votre fichier PDF</p>
         </div>
-      )}
-    </div>
-  )
-}
-
-function DocumentCard({ doc }: { doc: Document }) {
-  const docTypeLabel = doc.doc_type === 'EXAM' ? 'Épreuve' : 'Annales'
-  const docTypeBadge = doc.doc_type === 'EXAM' ? 'badge-exam' : 'badge-annales'
-
-  return (
-    <div className="document-card">
-      <div className="document-card-header">
-        <span className={`badge ${docTypeBadge}`}>
-          {docTypeLabel}
-        </span>
-        <span className="document-date">
-          {new Date(doc.created_at).toLocaleDateString('fr-FR')}
-        </span>
       </div>
 
-      <h3 className="document-title">{doc.title}</h3>
+      <div className="td-upload-layout">
+        <div className="td-form-card">
+          {error && <div className="td-alert td-alert-error">{error}</div>}
+          {success && <div className="td-alert td-alert-success">{success}</div>}
 
-      {doc.description && (
-        <p className="document-description">{doc.description}</p>
-      )}
+          <form className="td-form" onSubmit={handleSubmit}>
+            <div className="td-field">
+              <label className="td-label">Titre du document</label>
+              <input className="td-input" type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex : Baccalauréat Mathématiques 2023" required />
+            </div>
 
-      <div className="document-meta">
-        <span className="tag">{doc.subject}</span>
-        <span className="tag">{doc.level}</span>
+            <div className="td-field">
+              <label className="td-label">Description <span className="td-optional">(optionnel)</span></label>
+              <textarea className="td-textarea" value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Quelques mots pour décrire le contenu…" />
+            </div>
+
+            <div className="td-row">
+              <div className="td-field">
+                <label className="td-label">Matière</label>
+                <select className="td-select" value={subject} onChange={e => setSubject(e.target.value)} required>
+                  <option value="">Choisir…</option>
+                  {filters.subjects.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="td-field">
+                <label className="td-label">Niveau</label>
+                <select className="td-select" value={level} onChange={e => setLevel(e.target.value)} required>
+                  <option value="">Choisir…</option>
+                  {filters.levels.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+              <div className="td-field">
+                <label className="td-label">Type</label>
+                <select className="td-select" value={docType} onChange={e => setDocType(e.target.value)} required>
+                  <option value="">Choisir…</option>
+                  <option value="EXAM">Épreuve</option>
+                  <option value="ANNALES">Annales</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="td-field">
+              <label className="td-label">Fichier PDF</label>
+              <label className="td-file-drop">
+                <input type="file" accept=".pdf" onChange={handleFileChange} required style={{ display: 'none' }} />
+                {file ? (
+                  <div className="td-file-selected">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>{file.name}</span>
+                    <span className="td-file-size">{(file.size / 1024).toFixed(0)} KB</span>
+                  </div>
+                ) : (
+                  <div className="td-file-placeholder">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Cliquer pour sélectionner un PDF</span>
+                    <span className="td-file-hint">Seuls les fichiers .pdf sont acceptés</span>
+                  </div>
+                )}
+              </label>
+            </div>
+
+            <button className="td-btn-submit" type="submit" disabled={isLoading}>
+              {isLoading ? 'Publication en cours…' : 'Publier le document'}
+            </button>
+          </form>
+        </div>
+
+        {previewUrl && (
+          <div className="td-preview-card">
+            <p className="td-preview-title">Aperçu</p>
+            <div className="td-preview-pdf">
+              <PDFDocument file={previewUrl}>
+                <Page pageNumber={1} width={320} />
+              </PDFDocument>
+            </div>
+          </div>
+        )}
       </div>
-
-      <a
-        className="btn-download"
-        href={downloadUrl(doc.id)}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Télécharger PDF
-      </a>
     </div>
   )
 }
