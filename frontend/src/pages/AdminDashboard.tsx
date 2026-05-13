@@ -20,6 +20,21 @@ async function updateUser(token: string, userId: number, data: { status?: string
   return r.data
 }
 
+interface Stats {
+  total_documents: number
+  total_students: number
+  total_teachers: number
+  pending_teachers: number
+  exam_count: number
+  annales_count: number
+  subjects: { label: string; count: number }[]
+}
+
+async function getStats(token: string): Promise<Stats> {
+  const r = await api.get<Stats>('/admin/stats', { headers: authHeader(token) })
+  return r.data
+}
+
 type Tab = 'stats' | 'teachers'
 
 function AdminDashboard() {
@@ -111,7 +126,7 @@ function AdminDashboard() {
         {error && <div className="ad-alert ad-alert-error">{error}</div>}
         {success && <div className="ad-alert ad-alert-success">{success}</div>}
 
-        {tab === 'stats' && <StatsPanel pendingCount={teachers.length} />}
+        {tab === 'stats' && token && <StatsPanel token={token} pendingCount={teachers.length} />}
         {tab === 'teachers' && (
           <TeachersPanel
             teachers={teachers}
@@ -125,28 +140,57 @@ function AdminDashboard() {
   )
 }
 
-function StatsPanel({ pendingCount }: { pendingCount: number }) {
-  const stats = [
+function StatsPanel({ token, pendingCount }: { token: string; pendingCount: number }) {
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    getStats(token)
+      .then(setStats)
+      .finally(() => setIsLoading(false))
+  }, [token])
+
+  if (isLoading || !stats) {
+    return (
+      <div>
+        <div className="ad-page-header">
+          <div>
+            <h1 className="ad-page-title">Tableau de bord</h1>
+            <p className="ad-page-sub">Vue d'ensemble de la plateforme BacSuccès-CM</p>
+          </div>
+        </div>
+        <div className="ad-stats-grid">
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="ad-skeleton" style={{ height: 110 }} />)}
+        </div>
+      </div>
+    )
+  }
+
+  const totalDocs = stats.total_documents
+  const examPct = totalDocs > 0 ? Math.round((stats.exam_count / totalDocs) * 100) : 0
+  const annalesPct = totalDocs > 0 ? 100 - examPct : 0
+
+  const statCards = [
     {
       label: 'Documents publiés',
-      value: '2 148',
-      delta: '+12 cette semaine',
+      value: stats.total_documents.toLocaleString('fr-FR'),
+      delta: `${stats.exam_count} épreuves · ${stats.annales_count} annales`,
       up: true,
       icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
       color: 'green',
     },
     {
       label: 'Élèves inscrits',
-      value: '10 432',
-      delta: '+238 ce mois',
+      value: stats.total_students.toLocaleString('fr-FR'),
+      delta: 'Comptes actifs',
       up: true,
       icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
       color: 'blue',
     },
     {
       label: 'Enseignants actifs',
-      value: '512',
-      delta: '+8 ce mois',
+      value: stats.total_teachers.toLocaleString('fr-FR'),
+      delta: 'Comptes validés',
       up: true,
       icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
       color: 'violet',
@@ -161,22 +205,12 @@ function StatsPanel({ pendingCount }: { pendingCount: number }) {
     },
   ]
 
-  const breakdown = [
-    { label: 'Épreuves', count: 1384, pct: 64 },
-    { label: 'Annales', count: 764, pct: 36 },
-  ]
+  const maxSubject = stats.subjects.length > 0 ? Math.max(...stats.subjects.map(s => s.count)) : 1
 
-  const subjects = [
-    { label: 'Mathématiques', count: 512 },
-    { label: 'Physique', count: 398 },
-    { label: 'SVT', count: 287 },
-    { label: 'Français', count: 345 },
-    { label: 'Anglais', count: 264 },
-    { label: 'Histoire-Géo', count: 198 },
-    { label: 'Philosophie', count: 94 },
-    { label: 'Informatique', count: 50 },
-  ]
-  const maxSubject = Math.max(...subjects.map(s => s.count))
+  const circumference = 2 * Math.PI * 48
+  const examDash = (examPct / 100) * circumference
+  const annalesDash = (annalesPct / 100) * circumference
+  const offset = circumference * 0.25
 
   return (
     <div>
@@ -188,7 +222,7 @@ function StatsPanel({ pendingCount }: { pendingCount: number }) {
       </div>
 
       <div className="ad-stats-grid">
-        {stats.map((s, i) => (
+        {statCards.map((s, i) => (
           <div key={i} className={`ad-stat-card ad-stat-${s.color}`}>
             <div className="ad-stat-top">
               <div className="ad-stat-icon">{s.icon}</div>
@@ -203,53 +237,64 @@ function StatsPanel({ pendingCount }: { pendingCount: number }) {
       <div className="ad-charts-row">
         <div className="ad-chart-card">
           <h2 className="ad-chart-title">Répartition par type</h2>
-          <div className="ad-donut-wrap">
-            <svg className="ad-donut" viewBox="0 0 120 120">
-              <circle cx="60" cy="60" r="48" fill="none" stroke="#fef2f2" strokeWidth="18" />
-              <circle cx="60" cy="60" r="48" fill="none" stroke="#991b1b" strokeWidth="18"
-                strokeDasharray={`${64 * 3.016} ${100 * 3.016}`}
-                strokeDashoffset={3.016 * 25}
-                strokeLinecap="round"
-                transform="rotate(-90 60 60)"
-              />
-              <circle cx="60" cy="60" r="48" fill="none" stroke="#4c1d95" strokeWidth="18"
-                strokeDasharray={`${36 * 3.016} ${100 * 3.016}`}
-                strokeDashoffset={3.016 * (25 - 64)}
-                strokeLinecap="round"
-                transform="rotate(-90 60 60)"
-              />
-              <text x="60" y="55" textAnchor="middle" fontSize="14" fontWeight="800" fill="#0f172a">2 148</text>
-              <text x="60" y="70" textAnchor="middle" fontSize="8" fill="#94a3b8">documents</text>
-            </svg>
-            <div className="ad-donut-legend">
-              {breakdown.map((b, i) => (
-                <div key={i} className="ad-legend-row">
-                  <span className={`ad-legend-dot ${i === 0 ? 'exam' : 'annales'}`} />
-                  <span className="ad-legend-label">{b.label}</span>
-                  <span className="ad-legend-count">{b.count}</span>
-                  <span className="ad-legend-pct">{b.pct}%</span>
+          {totalDocs === 0 ? (
+            <p style={{ color: 'var(--ad-muted)', fontSize: 13 }}>Aucun document publié.</p>
+          ) : (
+            <div className="ad-donut-wrap">
+              <svg className="ad-donut" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="48" fill="none" stroke="#fef2f2" strokeWidth="18" />
+                <circle
+                  cx="60" cy="60" r="48" fill="none" stroke="#991b1b" strokeWidth="18"
+                  strokeDasharray={`${examDash} ${circumference}`}
+                  strokeDashoffset={offset}
+                  strokeLinecap="round"
+                  transform="rotate(-90 60 60)"
+                />
+                <circle
+                  cx="60" cy="60" r="48" fill="none" stroke="#4c1d95" strokeWidth="18"
+                  strokeDasharray={`${annalesDash} ${circumference}`}
+                  strokeDashoffset={offset - examDash}
+                  strokeLinecap="round"
+                  transform="rotate(-90 60 60)"
+                />
+                <text x="60" y="55" textAnchor="middle" fontSize="14" fontWeight="800" fill="#0f172a">{totalDocs}</text>
+                <text x="60" y="70" textAnchor="middle" fontSize="8" fill="#94a3b8">documents</text>
+              </svg>
+              <div className="ad-donut-legend">
+                <div className="ad-legend-row">
+                  <span className="ad-legend-dot exam" />
+                  <span className="ad-legend-label">Épreuves</span>
+                  <span className="ad-legend-count">{stats.exam_count}</span>
+                  <span className="ad-legend-pct">{examPct}%</span>
                 </div>
-              ))}
+                <div className="ad-legend-row">
+                  <span className="ad-legend-dot annales" />
+                  <span className="ad-legend-label">Annales</span>
+                  <span className="ad-legend-count">{stats.annales_count}</span>
+                  <span className="ad-legend-pct">{annalesPct}%</span>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="ad-chart-card">
           <h2 className="ad-chart-title">Documents par matière</h2>
-          <div className="ad-bars">
-            {subjects.map((s, i) => (
-              <div key={i} className="ad-bar-row">
-                <span className="ad-bar-label">{s.label}</span>
-                <div className="ad-bar-track">
-                  <div
-                    className="ad-bar-fill"
-                    style={{ width: `${(s.count / maxSubject) * 100}%` }}
-                  />
+          {stats.subjects.length === 0 ? (
+            <p style={{ color: 'var(--ad-muted)', fontSize: 13 }}>Aucun document publié.</p>
+          ) : (
+            <div className="ad-bars">
+              {stats.subjects.map((s, i) => (
+                <div key={i} className="ad-bar-row">
+                  <span className="ad-bar-label">{s.label}</span>
+                  <div className="ad-bar-track">
+                    <div className="ad-bar-fill" style={{ width: `${(s.count / maxSubject) * 100}%` }} />
+                  </div>
+                  <span className="ad-bar-value">{s.count}</span>
                 </div>
-                <span className="ad-bar-value">{s.count}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
