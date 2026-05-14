@@ -59,7 +59,3 @@ export async function uploadDocument(token: string, formData: FormData): Promise
   })
   return r.data
 }
-
-export function downloadUrl(docId: number) {
-  return `http://localhost:8000/documents/${docId}/download`
-}
