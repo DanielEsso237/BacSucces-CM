@@ -45,6 +45,9 @@ class DocumentOut(BaseModel):
     subject: str
     level: str
     doc_type: str
+    file_path: Optional[str] = None
+    cover_image_path: Optional[str] = None
+    contact_info: Optional[str] = None
     author_id: int
     created_at: datetime
     author: UserOut
