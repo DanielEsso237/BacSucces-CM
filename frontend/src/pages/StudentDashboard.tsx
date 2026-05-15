@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getDocuments, getFilters, downloadUrl } from '../api/documents'
+import { getDocuments, getFilters } from '../api/documents'
 import type { Document, Filters } from '../api/documents'
 import { Document as PDFDocument, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
@@ -18,6 +18,20 @@ function docTypeMeta(type: string) {
     case 'ANNALES': return { label: 'Annales', cls: 'chip-annales' }
     default: return { label: type, cls: 'chip-exam' }
   }
+}
+
+async function downloadWithAuth(docId: number, title: string, token: string) {
+  const res = await fetch(`http://localhost:8000/documents/${docId}/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) return
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${title}.pdf`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function StudentDashboard() {
@@ -192,7 +206,12 @@ function StudentDashboard() {
             {!isLoading && filtered.length > 0 && (
               <div className="sd-grid">
                 {filtered.map(doc => (
-                  <DocCard key={doc.id} doc={doc} onRead={() => setSelected(doc)} />
+                  <DocCard
+                    key={doc.id}
+                    doc={doc}
+                    token={token!}
+                    onRead={() => setSelected(doc)}
+                  />
                 ))}
               </div>
             )}
@@ -203,8 +222,12 @@ function StudentDashboard() {
   )
 }
 
-function DocCard({ doc, onRead }: { doc: Document; onRead: () => void }) {
+function DocCard({ doc, token, onRead }: { doc: Document; token: string; onRead: () => void }) {
   const { label, cls } = docTypeMeta(doc.doc_type)
+
+  const handleDownload = useCallback(() => {
+    downloadWithAuth(doc.id, doc.title, token)
+  }, [doc.id, doc.title, token])
 
   return (
     <article className="sd-card">
@@ -237,15 +260,10 @@ function DocCard({ doc, onRead }: { doc: Document; onRead: () => void }) {
         <button className="sd-btn-primary" onClick={onRead}>
           Lire en ligne
         </button>
-        <a
-          className="sd-btn-ghost"
-          href={downloadUrl(doc.id)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <button className="sd-btn-ghost" onClick={handleDownload}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Télécharger
-        </a>
+        </button>
       </div>
     </article>
   )
@@ -255,6 +273,18 @@ function ViewerPanel({ doc, token, onClose }: { doc: Document; token: string; on
   const [numPages, setNumPages] = useState(0)
   const [pageNumber, setPageNumber] = useState(1)
   const { label, cls } = docTypeMeta(doc.doc_type)
+
+  const pdfOptions = useMemo(() => ({
+    httpHeaders: { Authorization: `Bearer ${token}` },
+  }), [token])
+
+  const pdfUrl = useMemo(() => (
+    `http://localhost:8000/documents/${doc.id}/download`
+  ), [doc.id])
+
+  const handleDownload = useCallback(() => {
+    downloadWithAuth(doc.id, doc.title, token)
+  }, [doc.id, doc.title, token])
 
   return (
     <div className="sd-viewer">
@@ -270,15 +300,10 @@ function ViewerPanel({ doc, token, onClose }: { doc: Document; token: string; on
           <p className="sd-viewer-sub">{doc.subject} · {doc.level} · {doc.author.full_name}</p>
         </div>
 
-        <a
-          className="sd-btn-ghost"
-          href={downloadUrl(doc.id)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <button className="sd-btn-ghost" onClick={handleDownload}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Télécharger
-        </a>
+        </button>
       </div>
 
       <div className="sd-viewer-toolbar">
@@ -303,9 +328,9 @@ function ViewerPanel({ doc, token, onClose }: { doc: Document; token: string; on
 
       <div className="sd-viewer-pdf">
         <PDFDocument
-          file={`http://localhost:8000/documents/${doc.id}/download`}
+          file={pdfUrl}
+          options={pdfOptions}
           onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-          options={{ httpHeaders: { Authorization: `Bearer ${token}` } }}
         >
           <Page pageNumber={pageNumber} width={760} />
         </PDFDocument>

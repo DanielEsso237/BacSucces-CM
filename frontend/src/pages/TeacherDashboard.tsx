@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getDocuments, getFilters, uploadDocument, downloadUrl } from '../api/documents'
+import { getDocuments, getFilters, uploadDocument } from '../api/documents'
 import type { Document, Filters } from '../api/documents'
 import { Document as PDFDocument, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
@@ -20,6 +20,20 @@ function docTypeMeta(type: string) {
     case 'ANNALES': return { label: 'Annales', cls: 'chip-annales' }
     default: return { label: type, cls: 'chip-exam' }
   }
+}
+
+async function downloadWithAuth(docId: number, title: string, token: string) {
+  const res = await fetch(`http://localhost:8000/documents/${docId}/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) return
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${title}.pdf`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function TeacherDashboard() {
@@ -129,15 +143,19 @@ function MesDocuments({ token, userId, onUpload }: { token: string; userId: numb
         </div>
       ) : (
         <div className="td-grid">
-          {documents.map(doc => <DocCard key={doc.id} doc={doc} />)}
+          {documents.map(doc => <DocCard key={doc.id} doc={doc} token={token} />)}
         </div>
       )}
     </div>
   )
 }
 
-function DocCard({ doc }: { doc: Document }) {
+function DocCard({ doc, token }: { doc: Document; token: string }) {
   const { label, cls } = docTypeMeta(doc.doc_type)
+
+  const handleDownload = useCallback(() => {
+    downloadWithAuth(doc.id, doc.title, token)
+  }, [doc.id, doc.title, token])
 
   return (
     <article className="td-card">
@@ -153,10 +171,10 @@ function DocCard({ doc }: { doc: Document }) {
         <span className="td-tag">{doc.subject}</span>
         <span className="td-tag">{doc.level}</span>
       </div>
-      <a className="td-btn-download" href={downloadUrl(doc.id)} target="_blank" rel="noopener noreferrer">
+      <button className="td-btn-download" onClick={handleDownload}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Télécharger le PDF
-      </a>
+      </button>
     </article>
   )
 }
@@ -214,6 +232,8 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
       setIsLoading(false)
     }
   }
+
+  const previewOptions = useMemo(() => ({}), [])
 
   if (!filters) return <div className="td-loading">Chargement…</div>
 
@@ -297,7 +317,7 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
           <div className="td-preview-card">
             <p className="td-preview-title">Aperçu</p>
             <div className="td-preview-pdf">
-              <PDFDocument file={previewUrl}>
+              <PDFDocument file={previewUrl} options={previewOptions}>
                 <Page pageNumber={1} width={320} />
               </PDFDocument>
             </div>
