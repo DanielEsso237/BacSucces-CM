@@ -11,6 +11,9 @@ export interface Document {
   subject: string
   level: string
   doc_type: string
+  file_path: string | null
+  cover_image_path: string | null
+  contact_info: string | null
   author_id: number
   created_at: string
   author: {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getDocuments, getFilters } from '../api/documents'
 import type { Document, Filters } from '../api/documents'
@@ -206,12 +206,9 @@ function StudentDashboard() {
             {!isLoading && filtered.length > 0 && (
               <div className="sd-grid">
                 {filtered.map(doc => (
-                  <DocCard
-                    key={doc.id}
-                    doc={doc}
-                    token={token!}
-                    onRead={() => setSelected(doc)}
-                  />
+                  doc.doc_type === 'ANNALES'
+                    ? <AnnalesCard key={doc.id} doc={doc} token={token!} />
+                    : <DocCard key={doc.id} doc={doc} token={token!} onRead={() => setSelected(doc)} />
                 ))}
               </div>
             )}
@@ -219,6 +216,73 @@ function StudentDashboard() {
         )}
       </main>
     </div>
+  )
+}
+
+function AnnalesCard({ doc, token }: { doc: Document; token: string }) {
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy() {
+    if (!doc.contact_info) return
+    navigator.clipboard.writeText(doc.contact_info).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <article className="sd-card sd-card-annales">
+      {doc.cover_image_path && (
+        <div className="sd-annales-cover">
+          <img
+            src={`http://localhost:8000/documents/${doc.id}/cover?token=${token}`}
+            alt={`Couverture — ${doc.title}`}
+            className="sd-annales-cover-img"
+            onError={e => { (e.currentTarget as HTMLImageElement).parentElement!.style.display = 'none' }}
+          />
+        </div>
+      )}
+
+      <div className="sd-card-top">
+        <span className="sd-chip chip-annales">Annales</span>
+        <span className="sd-card-date">
+          {new Date(doc.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </span>
+      </div>
+
+      <h3 className="sd-card-title">{doc.title}</h3>
+
+      {doc.description && <p className="sd-card-desc">{doc.description}</p>}
+
+      <div className="sd-card-tags">
+        <span className="sd-tag">{doc.subject}</span>
+        <span className="sd-tag">{doc.level}</span>
+      </div>
+
+      <p className="sd-card-author">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        {doc.author.full_name}
+      </p>
+
+      {doc.contact_info && (
+        <div className="sd-annales-contact">
+          <div className="sd-annales-contact-label">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.69a2 2 0 0 1 2.73.53l1.45 2.2a2 2 0 0 1-.45 2.61l-.27.22a16 16 0 0 0 6.29 6.29l.22-.27a2 2 0 0 1 2.61-.45l2.2 1.45a2 2 0 0 1 .52 2.73z"/></svg>
+            Contacter pour acquérir
+          </div>
+          <div className="sd-annales-contact-row">
+            <span className="sd-annales-contact-value">{doc.contact_info}</span>
+            <button className="sd-annales-copy-btn" onClick={handleCopy} title="Copier">
+              {copied ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </article>
   )
 }
 
@@ -274,13 +338,8 @@ function ViewerPanel({ doc, token, onClose }: { doc: Document; token: string; on
   const [pageNumber, setPageNumber] = useState(1)
   const { label, cls } = docTypeMeta(doc.doc_type)
 
-  const pdfOptions = useMemo(() => ({
-    httpHeaders: { Authorization: `Bearer ${token}` },
-  }), [token])
-
-  const pdfUrl = useMemo(() => (
-    `http://localhost:8000/documents/${doc.id}/download`
-  ), [doc.id])
+  const pdfOptions = { httpHeaders: { Authorization: `Bearer ${token}` } }
+  const pdfUrl = `http://localhost:8000/documents/${doc.id}/download`
 
   const handleDownload = useCallback(() => {
     downloadWithAuth(doc.id, doc.title, token)
