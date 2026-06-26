@@ -8,6 +8,7 @@ function RegisterTeacher() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [justification, setJustification] = useState('')
+  const [contact, setContact] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -19,7 +20,7 @@ function RegisterTeacher() {
     setSuccess(null)
     setIsLoading(true)
     try {
-      await registerTeacher({ email, full_name: fullName, password, teacher_justification: justification })
+      await registerTeacher({ email, full_name: fullName, password, teacher_justification: justification, contact: contact || undefined })
       setSuccess('Demande envoyée ! Un administrateur validera ton compte sous 48h. Redirection…')
       setTimeout(() => navigate('/login'), 3000)
     } catch (err: any) {
@@ -81,6 +82,20 @@ function RegisterTeacher() {
                 placeholder="Minimum 8 caractères"
                 required
                 autoComplete="new-password"
+              />
+            </div>
+
+            <div className="auth-field">
+              <label className="auth-label">
+                Contact <span style={{ fontWeight: 400, fontSize: 12, color: '#94a3b8' }}>(optionnel)</span>
+              </label>
+              <input
+                className="auth-input"
+                type="tel"
+                value={contact}
+                onChange={e => setContact(e.target.value)}
+                placeholder="Ex : +237 6XX XXX XXX"
+                autoComplete="tel"
               />
             </div>
 

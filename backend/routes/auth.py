@@ -24,6 +24,7 @@ def register_student(data: StudentRegister, db: Session = Depends(get_db)):
         hashed_password=hash_password(data.password),
         role="STUDENT",
         status="ACTIVE",
+        contact=data.contact,
     )
     db.add(user)
     db.commit()
@@ -46,6 +47,7 @@ def register_teacher(data: TeacherRegister, db: Session = Depends(get_db)):
         role="TEACHER",
         status="PENDING",
         teacher_justification=data.teacher_justification,
+        contact=data.contact,
     )
     db.add(user)
     db.commit()

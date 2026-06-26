@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import '../styles/admin.css'
 import axios from 'axios'
 import type { User } from '../api/auth'
+import { getAllUsers } from '../api/auth'
 
 const api = axios.create({ baseURL: 'http://localhost:8000' })
 
@@ -27,6 +28,7 @@ interface Stats {
   pending_teachers: number
   exam_count: number
   annales_count: number
+  correction_count: number
   subjects: { label: string; count: number }[]
 }
 
@@ -35,7 +37,7 @@ async function getStats(token: string): Promise<Stats> {
   return r.data
 }
 
-type Tab = 'stats' | 'teachers'
+type Tab = 'stats' | 'teachers' | 'users'
 
 function AdminDashboard() {
   const { user, token, logout } = useAuth()
@@ -106,6 +108,13 @@ function AdminDashboard() {
               <span className="ad-nav-badge">{teachers.length}</span>
             )}
           </button>
+          <button
+            className={`ad-nav-item ${tab === 'users' ? 'active' : ''}`}
+            onClick={() => setTab('users')}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Inscrits
+          </button>
         </nav>
 
         <div className="ad-sidebar-footer">
@@ -135,6 +144,7 @@ function AdminDashboard() {
             onReject={handleReject}
           />
         )}
+        {tab === 'users' && token && <UsersPanel token={token} />}
       </main>
     </div>
   )
@@ -168,13 +178,14 @@ function StatsPanel({ token, pendingCount }: { token: string; pendingCount: numb
 
   const totalDocs = stats.total_documents
   const examPct = totalDocs > 0 ? Math.round((stats.exam_count / totalDocs) * 100) : 0
-  const annalesPct = totalDocs > 0 ? 100 - examPct : 0
+  const annalesPct = totalDocs > 0 ? Math.round((stats.annales_count / totalDocs) * 100) : 0
+  const correctionPct = totalDocs > 0 ? 100 - examPct - annalesPct : 0
 
   const statCards = [
     {
       label: 'Documents publiés',
       value: stats.total_documents.toLocaleString('fr-FR'),
-      delta: `${stats.exam_count} épreuves · ${stats.annales_count} annales`,
+      delta: `${stats.exam_count} épr. · ${stats.annales_count} ann. · ${stats.correction_count} corr.`,
       up: true,
       icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
       color: 'green',
@@ -210,6 +221,7 @@ function StatsPanel({ token, pendingCount }: { token: string; pendingCount: numb
   const circumference = 2 * Math.PI * 48
   const examDash = (examPct / 100) * circumference
   const annalesDash = (annalesPct / 100) * circumference
+  const correctionDash = (correctionPct / 100) * circumference
   const offset = circumference * 0.25
 
   return (
@@ -242,7 +254,7 @@ function StatsPanel({ token, pendingCount }: { token: string; pendingCount: numb
           ) : (
             <div className="ad-donut-wrap">
               <svg className="ad-donut" viewBox="0 0 120 120">
-                <circle cx="60" cy="60" r="48" fill="none" stroke="#fef2f2" strokeWidth="18" />
+                <circle cx="60" cy="60" r="48" fill="none" stroke="#f1f5f9" strokeWidth="18" />
                 <circle
                   cx="60" cy="60" r="48" fill="none" stroke="#991b1b" strokeWidth="18"
                   strokeDasharray={`${examDash} ${circumference}`}
@@ -254,6 +266,13 @@ function StatsPanel({ token, pendingCount }: { token: string; pendingCount: numb
                   cx="60" cy="60" r="48" fill="none" stroke="#4c1d95" strokeWidth="18"
                   strokeDasharray={`${annalesDash} ${circumference}`}
                   strokeDashoffset={offset - examDash}
+                  strokeLinecap="round"
+                  transform="rotate(-90 60 60)"
+                />
+                <circle
+                  cx="60" cy="60" r="48" fill="none" stroke="#0f766e" strokeWidth="18"
+                  strokeDasharray={`${correctionDash} ${circumference}`}
+                  strokeDashoffset={offset - examDash - annalesDash}
                   strokeLinecap="round"
                   transform="rotate(-90 60 60)"
                 />
@@ -272,6 +291,12 @@ function StatsPanel({ token, pendingCount }: { token: string; pendingCount: numb
                   <span className="ad-legend-label">Annales</span>
                   <span className="ad-legend-count">{stats.annales_count}</span>
                   <span className="ad-legend-pct">{annalesPct}%</span>
+                </div>
+                <div className="ad-legend-row">
+                  <span className="ad-legend-dot correction" />
+                  <span className="ad-legend-label">Corrections</span>
+                  <span className="ad-legend-count">{stats.correction_count}</span>
+                  <span className="ad-legend-pct">{correctionPct}%</span>
                 </div>
               </div>
             </div>
@@ -339,6 +364,12 @@ function TeachersPanel({
               <div className="ad-pending-info">
                 <h3 className="ad-pending-name">{teacher.full_name}</h3>
                 <p className="ad-pending-email">{teacher.email}</p>
+                {teacher.contact && (
+                  <p className="ad-pending-contact">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.06 6.06l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 17z"/></svg>
+                    {teacher.contact}
+                  </p>
+                )}
                 {teacher.teacher_justification && (
                   <div className="ad-pending-justif">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -363,6 +394,207 @@ function TeachersPanel({
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  STUDENT: 'Élève',
+  TEACHER: 'Enseignant',
+  ADMIN: 'Admin',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Actif',
+  PENDING: 'En attente',
+  SUSPENDED: 'Suspendu',
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  ACTIVE: '#166534',
+  PENDING: '#92400e',
+  SUSPENDED: '#991b1b',
+}
+
+const STATUS_BG: Record<string, string> = {
+  ACTIVE: '#dcfce7',
+  PENDING: '#fef3c7',
+  SUSPENDED: '#fef2f2',
+}
+
+function UsersPanel({ token }: { token: string }) {
+  const [users, setUsers] = useState<User[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [filterRole, setFilterRole] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<User | null>(null)
+
+  useEffect(() => {
+    setIsLoading(true)
+    getAllUsers(token, {
+      role: filterRole || undefined,
+      status: filterStatus || undefined,
+    })
+      .then(setUsers)
+      .finally(() => setIsLoading(false))
+  }, [token, filterRole, filterStatus])
+
+  const filtered = users.filter(u =>
+    u.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    u.email.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div>
+      <div className="ad-page-header">
+        <div>
+          <h1 className="ad-page-title">Inscrits</h1>
+          <p className="ad-page-sub">{isLoading ? '…' : `${filtered.length} utilisateur${filtered.length !== 1 ? 's' : ''}`}</p>
+        </div>
+      </div>
+
+      <div className="ad-users-toolbar">
+        <div className="ad-users-search-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input
+            className="ad-users-search"
+            type="text"
+            placeholder="Nom, email…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <select className="ad-users-select" value={filterRole} onChange={e => setFilterRole(e.target.value)}>
+          <option value="">Tous les rôles</option>
+          <option value="STUDENT">Élèves</option>
+          <option value="TEACHER">Enseignants</option>
+          <option value="ADMIN">Admins</option>
+        </select>
+        <select className="ad-users-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+          <option value="">Tous les statuts</option>
+          <option value="ACTIVE">Actifs</option>
+          <option value="PENDING">En attente</option>
+          <option value="SUSPENDED">Suspendus</option>
+        </select>
+      </div>
+
+      {isLoading && (
+        <div className="ad-users-list">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="ad-skeleton" style={{ height: 72 }} />)}
+        </div>
+      )}
+
+      {!isLoading && filtered.length === 0 && (
+        <div className="ad-empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <p>Aucun utilisateur trouvé</p>
+        </div>
+      )}
+
+      {!isLoading && filtered.length > 0 && (
+        <div className="ad-users-list">
+          {filtered.map(u => (
+            <button key={u.id} className="ad-user-row" onClick={() => setSelected(u)}>
+              <div className="ad-user-row-avatar" style={{ background: u.role === 'TEACHER' ? '#dbeafe' : u.role === 'ADMIN' ? '#fef3c7' : '#dcfce7', color: u.role === 'TEACHER' ? '#1d4ed8' : u.role === 'ADMIN' ? '#92400e' : '#166534' }}>
+                {u.full_name.charAt(0).toUpperCase()}
+              </div>
+              <div className="ad-user-row-info">
+                <span className="ad-user-row-name">{u.full_name}</span>
+                <span className="ad-user-row-email">{u.email}</span>
+              </div>
+              {u.contact && (
+                <span className="ad-user-row-contact">{u.contact}</span>
+              )}
+              <span className="ad-user-row-role">{ROLE_LABELS[u.role] ?? u.role}</span>
+              <span className="ad-user-row-status" style={{ background: STATUS_BG[u.status], color: STATUS_COLORS[u.status] }}>
+                {STATUS_LABELS[u.status] ?? u.status}
+              </span>
+              <span className="ad-user-row-date">
+                {new Date(u.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#94a3b8', flexShrink: 0 }} aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selected && (
+        <UserDetailModal user={selected} onClose={() => setSelected(null)} />
+      )}
+    </div>
+  )
+}
+
+function UserDetailModal({ user, onClose }: { user: User; onClose: () => void }) {
+  return (
+    <div className="ad-modal-overlay" onClick={onClose}>
+      <div className="ad-modal" onClick={e => e.stopPropagation()}>
+        <div className="ad-modal-header">
+          <h2 className="ad-modal-title">Détail de l'inscrit</h2>
+          <button className="ad-modal-close" onClick={onClose} aria-label="Fermer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div className="ad-modal-body">
+          <div className="ad-modal-avatar" style={{ background: user.role === 'TEACHER' ? '#dbeafe' : user.role === 'ADMIN' ? '#fef3c7' : '#dcfce7', color: user.role === 'TEACHER' ? '#1d4ed8' : user.role === 'ADMIN' ? '#92400e' : '#166534' }}>
+            {user.full_name.charAt(0).toUpperCase()}
+          </div>
+
+          <div className="ad-modal-fields">
+            <div className="ad-modal-field">
+              <span className="ad-modal-field-label">Nom complet</span>
+              <span className="ad-modal-field-value">{user.full_name}</span>
+            </div>
+            <div className="ad-modal-field">
+              <span className="ad-modal-field-label">Email</span>
+              <span className="ad-modal-field-value">{user.email}</span>
+            </div>
+            {user.contact && (
+              <div className="ad-modal-field">
+                <span className="ad-modal-field-label">Contact</span>
+                <span className="ad-modal-field-value">{user.contact}</span>
+              </div>
+            )}
+            <div className="ad-modal-field">
+              <span className="ad-modal-field-label">Rôle</span>
+              <span className="ad-modal-field-value">
+                <span className="ad-modal-badge" style={{ background: user.role === 'TEACHER' ? '#dbeafe' : user.role === 'ADMIN' ? '#fef3c7' : '#dcfce7', color: user.role === 'TEACHER' ? '#1d4ed8' : user.role === 'ADMIN' ? '#92400e' : '#166534' }}>
+                  {ROLE_LABELS[user.role] ?? user.role}
+                </span>
+              </span>
+            </div>
+            <div className="ad-modal-field">
+              <span className="ad-modal-field-label">Statut</span>
+              <span className="ad-modal-field-value">
+                <span className="ad-modal-badge" style={{ background: STATUS_BG[user.status], color: STATUS_COLORS[user.status] }}>
+                  {STATUS_LABELS[user.status] ?? user.status}
+                </span>
+              </span>
+            </div>
+            <div className="ad-modal-field">
+              <span className="ad-modal-field-label">Inscrit le</span>
+              <span className="ad-modal-field-value">
+                {new Date(user.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+            </div>
+            {user.teacher_justification && (
+              <div className="ad-modal-field ad-modal-field-full">
+                <span className="ad-modal-field-label">Justification professionnelle</span>
+                <div className="ad-pending-justif" style={{ marginTop: 4 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  {user.teacher_justification}
+                </div>
+              </div>
+            )}
+            <div className="ad-modal-field">
+              <span className="ad-modal-field-label">ID interne</span>
+              <span className="ad-modal-field-value" style={{ color: '#94a3b8', fontFamily: 'monospace' }}>#{user.id}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
