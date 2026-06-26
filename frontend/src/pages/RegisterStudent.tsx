@@ -7,6 +7,7 @@ function RegisterStudent() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [contact, setContact] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -18,7 +19,7 @@ function RegisterStudent() {
     setSuccess(null)
     setIsLoading(true)
     try {
-      await registerStudent({ email, full_name: fullName, password })
+      await registerStudent({ email, full_name: fullName, password, contact: contact || undefined })
       setSuccess('Compte créé ! Redirection vers la connexion…')
       setTimeout(() => navigate('/login'), 2000)
     } catch (err: any) {
@@ -80,6 +81,20 @@ function RegisterStudent() {
                 placeholder="Minimum 8 caractères"
                 required
                 autoComplete="new-password"
+              />
+            </div>
+
+            <div className="auth-field">
+              <label className="auth-label">
+                Contact <span style={{ fontWeight: 400, fontSize: 12, color: '#94a3b8' }}>(optionnel)</span>
+              </label>
+              <input
+                className="auth-input"
+                type="tel"
+                value={contact}
+                onChange={e => setContact(e.target.value)}
+                placeholder="Ex : +237 6XX XXX XXX"
+                autoComplete="tel"
               />
             </div>
 

@@ -18,6 +18,7 @@ function docTypeMeta(type: string) {
   switch (type) {
     case 'EXAM': return { label: 'Épreuve', cls: 'chip-exam' }
     case 'ANNALES': return { label: 'Annales', cls: 'chip-annales' }
+    case 'CORRECTION': return { label: 'Correction', cls: 'chip-correction' }
     default: return { label: type, cls: 'chip-exam' }
   }
 }
@@ -157,22 +158,8 @@ function DocCard({ doc, token }: { doc: Document; token: string }) {
     downloadWithAuth(doc.id, doc.title, token)
   }, [doc.id, doc.title, token])
 
-  const coverUrl = doc.cover_image_path
-    ? `http://localhost:8000/documents/${doc.id}/cover?token=${token}`
-    : null
-
   return (
     <article className="td-card">
-      {doc.doc_type === 'ANNALES' && coverUrl && (
-        <div className="td-card-cover">
-          <img
-            src={`http://localhost:8000/documents/${doc.id}/cover?token=${token}`}
-            alt={`Couverture — ${doc.title}`}
-            className="td-card-cover-img"
-            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-          />
-        </div>
-      )}
       <div className="td-card-top">
         <span className={`td-chip ${cls}`}>{label}</span>
         <span className="td-card-date">
@@ -185,18 +172,10 @@ function DocCard({ doc, token }: { doc: Document; token: string }) {
         <span className="td-tag">{doc.subject}</span>
         <span className="td-tag">{doc.level}</span>
       </div>
-      {doc.doc_type === 'ANNALES' && doc.contact_info && (
-        <p className="td-card-contact">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.69a2 2 0 0 1 2.73.53l1.45 2.2a2 2 0 0 1-.45 2.61l-.27.22a16 16 0 0 0 6.29 6.29l.22-.27a2 2 0 0 1 2.61-.45l2.2 1.45a2 2 0 0 1 .52 2.73z"/></svg>
-          Contact : {doc.contact_info}
-        </p>
-      )}
-      {doc.doc_type === 'EXAM' && (
-        <button className="td-btn-download" onClick={handleDownload}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Télécharger le PDF
-        </button>
-      )}
+      <button className="td-btn-download" onClick={handleDownload}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Télécharger le PDF
+      </button>
     </article>
   )
 }
@@ -208,7 +187,6 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
   const [subject, setSubject] = useState('')
   const [level, setLevel] = useState('')
   const [docType, setDocType] = useState('')
-  const [contactInfo, setContactInfo] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -218,32 +196,15 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
   useEffect(() => { getFilters().then(setFilters) }, [])
 
   useEffect(() => {
-    setFile(null)
-    setPreviewUrl(null)
-    setError(null)
-  }, [docType])
-
-  useEffect(() => {
     return () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }
   }, [previewUrl])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0] || null
-    if (!selected) return
-
-    if (docType === 'EXAM') {
-      if (selected.type !== 'application/pdf') {
-        setError('Seuls les fichiers PDF sont acceptés pour les épreuves')
-        return
-      }
-    } else if (docType === 'ANNALES') {
-      const allowed = ['image/jpeg', 'image/png', 'image/webp']
-      if (!allowed.includes(selected.type)) {
-        setError('La page de couverture doit être une image (JPEG, PNG ou WebP)')
-        return
-      }
+    if (selected && selected.type !== 'application/pdf') {
+      setError('Seuls les fichiers PDF sont acceptés')
+      return
     }
-
     setFile(selected)
     setError(null)
     setPreviewUrl(selected ? URL.createObjectURL(selected) : null)
@@ -251,14 +212,7 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!file) {
-      setError(docType === 'ANNALES' ? 'Sélectionne une image de couverture' : 'Sélectionne un fichier PDF')
-      return
-    }
-    if (docType === 'ANNALES' && !contactInfo.trim()) {
-      setError('Le contact est obligatoire pour les annales')
-      return
-    }
+    if (!file) { setError('Sélectionne un fichier PDF'); return }
     setError(null)
     setSuccess(null)
     setIsLoading(true)
@@ -268,7 +222,6 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
     formData.append('subject', subject)
     formData.append('level', level)
     formData.append('doc_type', docType)
-    if (contactInfo) formData.append('contact_info', contactInfo)
     formData.append('file', file)
     try {
       await uploadDocument(token, formData)
@@ -282,16 +235,6 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
   }
 
   const previewOptions = useMemo(() => ({}), [])
-  const isAnnales = docType === 'ANNALES'
-  const isExam = docType === 'EXAM'
-
-  const fileAccept = isAnnales ? '.jpg,.jpeg,.png,.webp' : '.pdf'
-  const filePlaceholderText = isAnnales
-    ? 'Cliquer pour sélectionner la page de couverture'
-    : 'Cliquer pour sélectionner un PDF'
-  const fileHintText = isAnnales
-    ? 'Image JPEG, PNG ou WebP uniquement'
-    : 'Seuls les fichiers .pdf sont acceptés'
 
   if (!filters) return <div className="td-loading">Chargement…</div>
 
@@ -300,7 +243,7 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
       <div className="td-page-header">
         <div>
           <h1 className="td-page-title">Uploader un document</h1>
-          <p className="td-page-sub">Remplissez les informations et sélectionnez votre fichier</p>
+          <p className="td-page-sub">Remplissez les informations et sélectionnez votre fichier PDF</p>
         </div>
       </div>
 
@@ -312,7 +255,7 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
           <form className="td-form" onSubmit={handleSubmit}>
             <div className="td-field">
               <label className="td-label">Titre du document</label>
-              <input className="td-input" type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex : Annales Mathématiques 2015–2023" required />
+              <input className="td-input" type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex : Baccalauréat Mathématiques 2023" required />
             </div>
 
             <div className="td-field">
@@ -341,61 +284,32 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
                   <option value="">Choisir…</option>
                   <option value="EXAM">Épreuve</option>
                   <option value="ANNALES">Annales</option>
+                  <option value="CORRECTION">Correction</option>
                 </select>
               </div>
             </div>
 
-            {isAnnales && (
-              <div className="td-field">
-                <label className="td-label">Contact pour l'acquisition</label>
-                <input
-                  className="td-input"
-                  type="text"
-                  value={contactInfo}
-                  onChange={e => setContactInfo(e.target.value)}
-                  placeholder="Ex : +237 6XX XXX XXX ou email@exemple.cm"
-                  required
-                />
-                <span className="td-hint">
-                  Ce contact sera affiché sur la card pour que les élèves puissent vous joindre pour acquérir l'annale.
-                </span>
-              </div>
-            )}
-
-            {docType && (
-              <div className="td-field">
-                <label className="td-label">
-                  {isAnnales ? 'Page de couverture' : 'Fichier PDF'}
-                </label>
-                {isAnnales && (
-                  <p className="td-hint" style={{ marginBottom: 8 }}>
-                    Uploadez une photo ou scan de la couverture de l'annale. Les élèves vous contacteront directement pour l'acquérir.
-                  </p>
+            <div className="td-field">
+              <label className="td-label">Fichier PDF</label>
+              <label className="td-file-drop">
+                <input type="file" accept=".pdf" onChange={handleFileChange} required style={{ display: 'none' }} />
+                {file ? (
+                  <div className="td-file-selected">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>{file.name}</span>
+                    <span className="td-file-size">{(file.size / 1024).toFixed(0)} KB</span>
+                  </div>
+                ) : (
+                  <div className="td-file-placeholder">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Cliquer pour sélectionner un PDF</span>
+                    <span className="td-file-hint">Seuls les fichiers .pdf sont acceptés</span>
+                  </div>
                 )}
-                <label className="td-file-drop">
-                  <input type="file" accept={fileAccept} onChange={handleFileChange} required style={{ display: 'none' }} />
-                  {file ? (
-                    <div className="td-file-selected">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                      <span>{file.name}</span>
-                      <span className="td-file-size">{(file.size / 1024).toFixed(0)} KB</span>
-                    </div>
-                  ) : (
-                    <div className="td-file-placeholder">
-                      {isAnnales ? (
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                      ) : (
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                      )}
-                      <span>{filePlaceholderText}</span>
-                      <span className="td-file-hint">{fileHintText}</span>
-                    </div>
-                  )}
-                </label>
-              </div>
-            )}
+              </label>
+            </div>
 
-            <button className="td-btn-submit" type="submit" disabled={isLoading || !docType}>
+            <button className="td-btn-submit" type="submit" disabled={isLoading}>
               {isLoading ? 'Publication en cours…' : 'Publier le document'}
             </button>
           </form>
@@ -405,17 +319,9 @@ function UploadForm({ token, onSuccess }: { token: string; onSuccess: () => void
           <div className="td-preview-card">
             <p className="td-preview-title">Aperçu</p>
             <div className="td-preview-pdf">
-              {isExam ? (
-                <PDFDocument file={previewUrl} options={previewOptions}>
-                  <Page pageNumber={1} width={320} />
-                </PDFDocument>
-              ) : (
-                <img
-                  src={previewUrl}
-                  alt="Aperçu couverture"
-                  style={{ width: 320, display: 'block', borderRadius: 6 }}
-                />
-              )}
+              <PDFDocument file={previewUrl} options={previewOptions}>
+                <Page pageNumber={1} width={320} />
+              </PDFDocument>
             </div>
           </div>
         )}

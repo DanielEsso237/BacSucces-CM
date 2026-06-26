@@ -8,6 +8,8 @@
   --sd-exam-text: #991b1b;
   --sd-annales-bg: #ede9fe;
   --sd-annales-text: #4c1d95;
+  --sd-correction-bg: #f0fdfa;
+  --sd-correction-text: #0f766e;
   --sd-surface: #ffffff;
   --sd-bg: #f8fafc;
   --sd-border: #e2e8f0;
@@ -99,9 +101,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s;
+  transition: background 0.15s, color 0.15s;
   width: 100%;
   text-align: left;
 }
@@ -313,9 +313,7 @@
   color: var(--sd-text);
   background: var(--sd-surface);
   outline: none;
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .sd-search-input:focus {
@@ -376,12 +374,8 @@
 }
 
 @keyframes sd-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .sd-empty {
@@ -408,9 +402,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition:
-    box-shadow 0.2s,
-    border-color 0.2s;
+  transition: box-shadow 0.2s, border-color 0.2s;
 }
 
 .sd-card:hover {
@@ -439,6 +431,24 @@
 .chip-annales {
   background: var(--sd-annales-bg);
   color: var(--sd-annales-text);
+}
+
+.chip-correction {
+  background: var(--sd-correction-bg);
+  color: var(--sd-correction-text);
+}
+
+.sd-offline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #0f766e;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  border-radius: 20px;
+  padding: 2px 7px;
 }
 
 .sd-card-date {
@@ -497,7 +507,7 @@
 .sd-card-actions {
   display: flex;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .sd-btn-primary {
@@ -539,6 +549,55 @@
 
 .sd-btn-ghost:hover {
   background: var(--sd-green-light);
+}
+
+.sd-btn-ghost-active {
+  background: var(--sd-green-light);
+  border-color: var(--sd-green);
+  color: var(--sd-green-text);
+}
+
+.sd-btn-offline {
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  color: var(--sd-muted);
+  border: 1px dashed var(--sd-border);
+  border-radius: var(--sd-radius-sm);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.sd-btn-offline:hover:not(:disabled) {
+  border-color: #0f766e;
+  color: #0f766e;
+  background: #f0fdfa;
+  border-style: solid;
+}
+
+.sd-btn-offline-active {
+  border-style: solid;
+  border-color: #99f6e4;
+  color: #0f766e;
+  background: #f0fdfa;
+}
+
+.sd-btn-offline-active:hover:not(:disabled) {
+  border-color: #f87171;
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.sd-btn-offline:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .sd-viewer {
@@ -653,109 +712,4 @@
   padding: 24px;
   background: #f1f5f9;
   overflow-x: auto;
-}
-
-.sd-card-annales {
-  padding: 0;
-  overflow: hidden;
-}
-
-.sd-card-annales .sd-card-top,
-.sd-card-annales .sd-card-title,
-.sd-card-annales .sd-card-desc,
-.sd-card-annales .sd-card-tags,
-.sd-card-annales .sd-card-author,
-.sd-card-annales .sd-annales-contact {
-  padding-left: 16px;
-  padding-right: 16px;
-}
-
-.sd-card-annales .sd-card-top {
-  padding-top: 14px;
-}
-
-.sd-card-annales .sd-card-author {
-  padding-bottom: 0;
-}
-
-.sd-annales-cover {
-  width: 100%;
-  height: 220px;
-  overflow: hidden;
-  background: var(--sd-bg);
-  border-bottom: 1px solid var(--sd-border);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.sd-annales-cover-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: center;
-  display: block;
-  transition: transform 0.3s ease;
-}
-
-.sd-card-annales:hover .sd-annales-cover-img {
-  transform: scale(1.03);
-}
-
-.sd-annales-contact {
-  margin-top: 10px;
-  margin-bottom: 16px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: var(--sd-radius-sm);
-  padding: 10px 12px !important;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-left: 16px !important;
-  margin-right: 16px !important;
-}
-
-.sd-annales-contact-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #166534;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.sd-annales-contact-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.sd-annales-contact-value {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #14532d;
-  word-break: break-all;
-}
-
-.sd-annales-copy-btn {
-  background: #dcfce7;
-  border: 1px solid #86efac;
-  border-radius: 5px;
-  padding: 4px 7px;
-  cursor: pointer;
-  color: #166534;
-  display: flex;
-  align-items: center;
-  transition: all 0.15s;
-  flex-shrink: 0;
-}
-
-.sd-annales-copy-btn:hover {
-  background: #bbf7d0;
-  border-color: #4ade80;
 }

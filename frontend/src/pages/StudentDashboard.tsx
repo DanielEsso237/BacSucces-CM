@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getDocuments, getFilters } from '../api/documents'
 import type { Document, Filters } from '../api/documents'
@@ -12,26 +12,86 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
-function docTypeMeta(type: string) {
-  switch (type) {
-    case 'EXAM': return { label: 'Épreuve', cls: 'chip-exam' }
-    case 'ANNALES': return { label: 'Annales', cls: 'chip-annales' }
-    default: return { label: type, cls: 'chip-exam' }
-  }
+const DB_NAME = 'bacsucces-offline'
+const DB_VERSION = 1
+const STORE_NAME = 'pdfs'
+
+function openDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION)
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(STORE_NAME)
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
 }
 
-async function downloadWithAuth(docId: number, title: string, token: string) {
+async function savePDFOffline(docId: number, blob: Blob): Promise<void> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    tx.objectStore(STORE_NAME).put(blob, docId)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
+async function getPDFOffline(docId: number): Promise<Blob | null> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const req = tx.objectStore(STORE_NAME).get(docId)
+    req.onsuccess = () => resolve(req.result ?? null)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function deletePDFOffline(docId: number): Promise<void> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    tx.objectStore(STORE_NAME).delete(docId)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
+async function listOfflineIds(): Promise<number[]> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const req = tx.objectStore(STORE_NAME).getAllKeys()
+    req.onsuccess = () => resolve(req.result as number[])
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function fetchPDFBlob(docId: number, token: string): Promise<Blob> {
   const res = await fetch(`http://localhost:8000/documents/${docId}/download`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-  if (!res.ok) return
-  const blob = await res.blob()
+  if (!res.ok) throw new Error('Erreur réseau')
+  return res.blob()
+}
+
+async function downloadWithAuth(docId: number, title: string, token: string) {
+  const blob = await fetchPDFBlob(docId, token)
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = `${title}.pdf`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+function docTypeMeta(type: string) {
+  switch (type) {
+    case 'EXAM': return { label: 'Épreuve', cls: 'chip-exam' }
+    case 'ANNALES': return { label: 'Annales', cls: 'chip-annales' }
+    case 'CORRECTION': return { label: 'Correction', cls: 'chip-correction' }
+    default: return { label: type, cls: 'chip-exam' }
+  }
 }
 
 function StudentDashboard() {
@@ -45,8 +105,12 @@ function StudentDashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Document | null>(null)
+  const [offlineIds, setOfflineIds] = useState<Set<number>>(new Set())
 
-  useEffect(() => { getFilters().then(setFilters) }, [])
+  useEffect(() => {
+    getFilters().then(setFilters)
+    listOfflineIds().then(ids => setOfflineIds(new Set(ids)))
+  }, [])
 
   useEffect(() => {
     if (!token) return
@@ -70,6 +134,7 @@ function StudentDashboard() {
     total: documents.length,
     exams: documents.filter(d => d.doc_type === 'EXAM').length,
     annales: documents.filter(d => d.doc_type === 'ANNALES').length,
+    corrections: documents.filter(d => d.doc_type === 'CORRECTION').length,
   }
 
   const hasFilters = !!(subject || level || docType || search)
@@ -79,6 +144,18 @@ function StudentDashboard() {
     setLevel('')
     setDocType('')
     setSearch('')
+  }
+
+  async function handleToggleOffline(doc: Document) {
+    if (!token) return
+    if (offlineIds.has(doc.id)) {
+      await deletePDFOffline(doc.id)
+      setOfflineIds(prev => { const s = new Set(prev); s.delete(doc.id); return s })
+    } else {
+      const blob = await fetchPDFBlob(doc.id, token)
+      await savePDFOffline(doc.id, blob)
+      setOfflineIds(prev => new Set([...prev, doc.id]))
+    }
   }
 
   return (
@@ -114,6 +191,14 @@ function StudentDashboard() {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             Annales
             <span className="sd-nav-count">{stats.annales}</span>
+          </button>
+          <button
+            className={`sd-nav-item ${docType === 'CORRECTION' ? 'active' : ''}`}
+            onClick={() => setDocType('CORRECTION')}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Corrections
+            <span className="sd-nav-count">{stats.corrections}</span>
           </button>
         </nav>
 
@@ -159,7 +244,13 @@ function StudentDashboard() {
 
       <main className="sd-main">
         {selected && token ? (
-          <ViewerPanel doc={selected} token={token} onClose={() => setSelected(null)} />
+          <ViewerPanel
+            doc={selected}
+            token={token}
+            isOffline={offlineIds.has(selected.id)}
+            onClose={() => setSelected(null)}
+            onToggleOffline={() => handleToggleOffline(selected)}
+          />
         ) : (
           <>
             <div className="sd-topbar">
@@ -206,9 +297,14 @@ function StudentDashboard() {
             {!isLoading && filtered.length > 0 && (
               <div className="sd-grid">
                 {filtered.map(doc => (
-                  doc.doc_type === 'ANNALES'
-                    ? <AnnalesCard key={doc.id} doc={doc} token={token!} />
-                    : <DocCard key={doc.id} doc={doc} token={token!} onRead={() => setSelected(doc)} />
+                  <DocCard
+                    key={doc.id}
+                    doc={doc}
+                    token={token!}
+                    isOffline={offlineIds.has(doc.id)}
+                    onRead={() => setSelected(doc)}
+                    onToggleOffline={() => handleToggleOffline(doc)}
+                  />
                 ))}
               </div>
             )}
@@ -219,89 +315,43 @@ function StudentDashboard() {
   )
 }
 
-function AnnalesCard({ doc, token }: { doc: Document; token: string }) {
-  const [copied, setCopied] = useState(false)
-
-  function handleCopy() {
-    if (!doc.contact_info) return
-    navigator.clipboard.writeText(doc.contact_info).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
-  return (
-    <article className="sd-card sd-card-annales">
-      {doc.cover_image_path && (
-        <div className="sd-annales-cover">
-          <img
-            src={`http://localhost:8000/documents/${doc.id}/cover?token=${token}`}
-            alt={`Couverture — ${doc.title}`}
-            className="sd-annales-cover-img"
-            onError={e => { (e.currentTarget as HTMLImageElement).parentElement!.style.display = 'none' }}
-          />
-        </div>
-      )}
-
-      <div className="sd-card-top">
-        <span className="sd-chip chip-annales">Annales</span>
-        <span className="sd-card-date">
-          {new Date(doc.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-        </span>
-      </div>
-
-      <h3 className="sd-card-title">{doc.title}</h3>
-
-      {doc.description && <p className="sd-card-desc">{doc.description}</p>}
-
-      <div className="sd-card-tags">
-        <span className="sd-tag">{doc.subject}</span>
-        <span className="sd-tag">{doc.level}</span>
-      </div>
-
-      <p className="sd-card-author">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        {doc.author.full_name}
-      </p>
-
-      {doc.contact_info && (
-        <div className="sd-annales-contact">
-          <div className="sd-annales-contact-label">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.69a2 2 0 0 1 2.73.53l1.45 2.2a2 2 0 0 1-.45 2.61l-.27.22a16 16 0 0 0 6.29 6.29l.22-.27a2 2 0 0 1 2.61-.45l2.2 1.45a2 2 0 0 1 .52 2.73z"/></svg>
-            Contacter pour acquérir
-          </div>
-          <div className="sd-annales-contact-row">
-            <span className="sd-annales-contact-value">{doc.contact_info}</span>
-            <button className="sd-annales-copy-btn" onClick={handleCopy} title="Copier">
-              {copied ? (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-              ) : (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-    </article>
-  )
-}
-
-function DocCard({ doc, token, onRead }: { doc: Document; token: string; onRead: () => void }) {
+function DocCard({ doc, token, isOffline, onRead, onToggleOffline }: {
+  doc: Document
+  token: string
+  isOffline: boolean
+  onRead: () => void
+  onToggleOffline: () => void
+}) {
   const { label, cls } = docTypeMeta(doc.doc_type)
+  const [savingOffline, setSavingOffline] = useState(false)
 
   const handleDownload = useCallback(() => {
     downloadWithAuth(doc.id, doc.title, token)
   }, [doc.id, doc.title, token])
 
+  async function handleOffline() {
+    setSavingOffline(true)
+    await onToggleOffline()
+    setSavingOffline(false)
+  }
+
   return (
     <article className="sd-card">
       <div className="sd-card-top">
         <span className={`sd-chip ${cls}`}>{label}</span>
-        <span className="sd-card-date">
-          {new Date(doc.created_at).toLocaleDateString('fr-FR', {
-            day: 'numeric', month: 'short', year: 'numeric'
-          })}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {isOffline && (
+            <span className="sd-offline-badge" title="Disponible hors-ligne">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="22 12 16 12 13 21 11 3 8 12 2 12"/></svg>
+              Hors-ligne
+            </span>
+          )}
+          <span className="sd-card-date">
+            {new Date(doc.created_at).toLocaleDateString('fr-FR', {
+              day: 'numeric', month: 'short', year: 'numeric'
+            })}
+          </span>
+        </div>
       </div>
 
       <h3 className="sd-card-title">{doc.title}</h3>
@@ -322,28 +372,82 @@ function DocCard({ doc, token, onRead }: { doc: Document; token: string; onRead:
 
       <div className="sd-card-actions">
         <button className="sd-btn-primary" onClick={onRead}>
-          Lire en ligne
+          Lire
         </button>
         <button className="sd-btn-ghost" onClick={handleDownload}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Télécharger
         </button>
       </div>
+
+      <button
+        className={`sd-btn-offline ${isOffline ? 'sd-btn-offline-active' : ''}`}
+        onClick={handleOffline}
+        disabled={savingOffline}
+        title={isOffline ? 'Supprimer de la lecture hors-ligne' : 'Sauvegarder pour lire hors-ligne'}
+      >
+        {savingOffline ? (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+        ) : isOffline ? (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM9 17h6M9 13h6M9 9h1"/></svg>
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        )}
+        {savingOffline ? 'Sauvegarde…' : isOffline ? 'Disponible hors-ligne' : 'Lire hors-ligne'}
+      </button>
     </article>
   )
 }
 
-function ViewerPanel({ doc, token, onClose }: { doc: Document; token: string; onClose: () => void }) {
+function ViewerPanel({ doc, token, isOffline, onClose, onToggleOffline }: {
+  doc: Document
+  token: string
+  isOffline: boolean
+  onClose: () => void
+  onToggleOffline: () => void
+}) {
   const [numPages, setNumPages] = useState(0)
   const [pageNumber, setPageNumber] = useState(1)
+  const [offlineBlobUrl, setOfflineBlobUrl] = useState<string | null>(null)
+  const [savingOffline, setSavingOffline] = useState(false)
   const { label, cls } = docTypeMeta(doc.doc_type)
 
-  const pdfOptions = { httpHeaders: { Authorization: `Bearer ${token}` } }
-  const pdfUrl = `http://localhost:8000/documents/${doc.id}/download`
+  useEffect(() => {
+    if (isOffline) {
+      getPDFOffline(doc.id).then(blob => {
+        if (blob) setOfflineBlobUrl(URL.createObjectURL(blob))
+      })
+    } else {
+      setOfflineBlobUrl(null)
+    }
+    return () => {
+      if (offlineBlobUrl) URL.revokeObjectURL(offlineBlobUrl)
+    }
+  }, [doc.id, isOffline])
+
+  const pdfOptions = useMemo(() => ({
+    httpHeaders: { Authorization: `Bearer ${token}` },
+  }), [token])
+
+  const pdfUrl = useMemo(() => (
+    `http://localhost:8000/documents/${doc.id}/download`
+  ), [doc.id])
 
   const handleDownload = useCallback(() => {
     downloadWithAuth(doc.id, doc.title, token)
   }, [doc.id, doc.title, token])
+
+  async function handleOffline() {
+    setSavingOffline(true)
+    await onToggleOffline()
+    setSavingOffline(false)
+    if (!isOffline) {
+      const blob = await getPDFOffline(doc.id)
+      if (blob) setOfflineBlobUrl(URL.createObjectURL(blob))
+    } else {
+      setOfflineBlobUrl(null)
+    }
+  }
 
   return (
     <div className="sd-viewer">
@@ -359,10 +463,36 @@ function ViewerPanel({ doc, token, onClose }: { doc: Document; token: string; on
           <p className="sd-viewer-sub">{doc.subject} · {doc.level} · {doc.author.full_name}</p>
         </div>
 
-        <button className="sd-btn-ghost" onClick={handleDownload}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Télécharger
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className={`sd-btn-ghost ${isOffline ? 'sd-btn-ghost-active' : ''}`}
+            onClick={handleOffline}
+            disabled={savingOffline}
+            title={isOffline ? 'Retirer du mode hors-ligne' : 'Sauvegarder pour lire hors-ligne'}
+          >
+            {savingOffline ? (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+                Sauvegarde…
+              </>
+            ) : isOffline ? (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                Hors-ligne
+              </>
+            ) : (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                Hors-ligne
+              </>
+            )}
+          </button>
+
+          <button className="sd-btn-ghost" onClick={handleDownload}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Télécharger
+          </button>
+        </div>
       </div>
 
       <div className="sd-viewer-toolbar">
@@ -387,8 +517,8 @@ function ViewerPanel({ doc, token, onClose }: { doc: Document; token: string; on
 
       <div className="sd-viewer-pdf">
         <PDFDocument
-          file={pdfUrl}
-          options={pdfOptions}
+          file={offlineBlobUrl ?? pdfUrl}
+          options={offlineBlobUrl ? undefined : pdfOptions}
           onLoadSuccess={({ numPages }) => setNumPages(numPages)}
         >
           <Page pageNumber={pageNumber} width={760} />

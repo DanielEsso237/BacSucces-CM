@@ -6,12 +6,14 @@ class StudentRegister(BaseModel):
     email: EmailStr
     full_name: str
     password: str
+    contact: Optional[str] = None
 
 class TeacherRegister(BaseModel):
     email: EmailStr
     full_name: str
     password: str
     teacher_justification: str
+    contact: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -25,6 +27,7 @@ class UserOut(BaseModel):
     status: str
     created_at: datetime
     teacher_justification: Optional[str] = None
+    contact: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -45,9 +48,6 @@ class DocumentOut(BaseModel):
     subject: str
     level: str
     doc_type: str
-    file_path: Optional[str] = None
-    cover_image_path: Optional[str] = None
-    contact_info: Optional[str] = None
     author_id: int
     created_at: datetime
     author: UserOut

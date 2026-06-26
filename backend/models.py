@@ -13,6 +13,7 @@ class User(Base):
     role = Column(String, default="STUDENT")
     status = Column(String, default="ACTIVE")
     teacher_justification = Column(Text, nullable=True)
+    contact = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     documents = relationship("Document", back_populates="author")
 
@@ -25,9 +26,7 @@ class Document(Base):
     subject = Column(String, nullable=False)
     level = Column(String, nullable=False)
     doc_type = Column(String, nullable=False)
-    file_path = Column(String, nullable=True)
-    cover_image_path = Column(String, nullable=True)
-    contact_info = Column(String, nullable=True)
+    file_path = Column(String, nullable=False)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     author = relationship("User", back_populates="documents")
