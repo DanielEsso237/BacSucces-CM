@@ -700,3 +700,43 @@
     .lp-stats-inner { grid-template-columns: repeat(2, 1fr); gap: 16px; }
   }
 }
+
+.lp-nav-wa {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff;
+  background: #25d366;
+  padding: 7px 14px;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: background 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+.lp-nav-wa:hover {
+  background: #128c4a;
+  box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35);
+}
+
+.lp-btn-wa-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  background: #25d366;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 14.5px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+
+.lp-btn-wa-cta:hover {
+  background: #128c4a;
+  box-shadow: 0 4px 16px rgba(37, 211, 102, 0.4);
+}

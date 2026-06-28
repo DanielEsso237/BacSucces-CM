@@ -11,11 +11,10 @@ export interface Document {
   subject: string
   level: string
   doc_type: string
-  file_path: string | null
-  cover_image_path: string | null
-  contact_info: string | null
   author_id: number
   created_at: string
+  has_cover: boolean
+  annales_contacts: string[] | null
   author: {
     id: number
     full_name: string
@@ -23,6 +22,7 @@ export interface Document {
     role: string
     status: string
     created_at: string
+    contact: string | null
   }
 }
 
@@ -34,6 +34,10 @@ export interface Filters {
 
 function authHeader(token: string) {
   return { Authorization: `Bearer ${token}` }
+}
+
+export function coverUrl(docId: number, token: string): string {
+  return `http://localhost:8000/documents/${docId}/cover?token=${encodeURIComponent(token)}`
 }
 
 export async function getFilters(): Promise<Filters> {

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class StudentRegister(BaseModel):
@@ -51,5 +51,7 @@ class DocumentOut(BaseModel):
     author_id: int
     created_at: datetime
     author: UserOut
+    has_cover: bool = False
+    annales_contacts: Optional[List[str]] = None
 
     model_config = {"from_attributes": True}
