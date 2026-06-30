@@ -6,6 +6,7 @@ import { Document as PDFDocument, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import '../styles/student.css'
+import ImageLightbox from '../components/ImageLightbox'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -292,8 +293,7 @@ function StudentDashboard() {
                     token={token!}
                     isOffline={offlineIds.has(doc.id)}
                     onRead={() => setSelected(doc)}
-                    onToggleOffline={() => handleToggleOffline(doc)}
-                  />
+                    />
                 ))}
               </div>
             )}
@@ -304,18 +304,12 @@ function StudentDashboard() {
   )
 }
 
-function DocCard({ doc, token, isOffline, onRead, onToggleOffline }: {
-  doc: Document; token: string; isOffline: boolean; onRead: () => void; onToggleOffline: () => void
+function DocCard({ doc, token, isOffline, onRead }: {
+  doc: Document; token: string; isOffline: boolean; onRead: () => void
 }) {
   const { label, cls } = docTypeMeta(doc.doc_type)
-  const [savingOffline, setSavingOffline] = useState(false)
+  const [showLightbox, setShowLightbox] = useState(false)
   const handleDownload = useCallback(() => downloadWithAuth(doc.id, doc.title, token), [doc.id, doc.title, token])
-
-  async function handleOffline() {
-    setSavingOffline(true)
-    await onToggleOffline()
-    setSavingOffline(false)
-  }
 
   return (
     <article className="sd-card">
@@ -370,27 +364,25 @@ function DocCard({ doc, token, isOffline, onRead, onToggleOffline }: {
           </div>
         )}
 
-        <div className="sd-card-actions">
-          <button className="sd-btn-primary" onClick={onRead}>Lire</button>
-          <button className="sd-btn-ghost" onClick={handleDownload}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Télécharger
+        {doc.doc_type === 'ANNALES' ? (
+          <button className="sd-btn-primary" onClick={() => setShowLightbox(true)} disabled={!doc.has_cover}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+            Agrandir la photo
           </button>
-        </div>
-
-        <button
-          className={`sd-btn-offline ${isOffline ? 'sd-btn-offline-active' : ''}`}
-          onClick={handleOffline}
-          disabled={savingOffline}
-        >
-          {savingOffline ? (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
-          ) : (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          )}
-          {savingOffline ? 'Sauvegarde…' : isOffline ? 'Disponible hors-ligne · Retirer' : 'Lire hors-ligne'}
-        </button>
+        ) : (
+          <div className="sd-card-actions">
+            <button className="sd-btn-primary" onClick={onRead}>Lire</button>
+            <button className="sd-btn-ghost" onClick={handleDownload}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Télécharger
+            </button>
+          </div>
+        )}
       </div>
+
+      {showLightbox && doc.has_cover && (
+        <ImageLightbox src={coverUrl(doc.id, token)} onClose={() => setShowLightbox(false)} />
+      )}
     </article>
   )
 }

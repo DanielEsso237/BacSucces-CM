@@ -6,6 +6,7 @@ import { Document as PDFDocument, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import '../styles/teacher.css'
+import ImageLightbox from '../components/ImageLightbox'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -171,6 +172,7 @@ function MesDocuments({ token, userId, onUpload }: { token: string; userId: numb
 
 function DocCard({ doc, token }: { doc: Document; token: string }) {
   const { label, cls } = docTypeMeta(doc.doc_type)
+  const [showLightbox, setShowLightbox] = useState(false)
   const handleDownload = useCallback(() => downloadWithAuth(doc.id, doc.title, token), [doc.id, doc.title, token])
 
   return (
@@ -205,11 +207,21 @@ function DocCard({ doc, token }: { doc: Document; token: string }) {
             </div>
           </div>
         )}
-        <button className="td-btn-download" onClick={handleDownload}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Télécharger le PDF
-        </button>
+        {doc.doc_type === 'ANNALES' ? (
+          <button className="td-btn-download" onClick={() => setShowLightbox(true)} disabled={!doc.has_cover}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+            Agrandir la photo
+          </button>
+        ) : (
+          <button className="td-btn-download" onClick={handleDownload}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Télécharger le PDF
+          </button>
+        )}
       </div>
+      {showLightbox && doc.has_cover && (
+        <ImageLightbox src={coverUrl(doc.id, token)} onClose={() => setShowLightbox(false)} />
+      )}
     </article>
   )
 }
@@ -230,6 +242,9 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
   const [success, setSuccess] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
+  const needsCover = docType === 'ANNALES'
+  const needsPdf = docType === 'EXAM' || docType === 'CORRECTION'
+
   useEffect(() => { getFilters().then(setFilters) }, [])
 
   useEffect(() => {
@@ -238,6 +253,19 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
       if (coverPreview) URL.revokeObjectURL(coverPreview)
     }
   }, [pdfPreviewUrl, coverPreview])
+
+  useEffect(() => {
+    if (!needsCover && coverFile) {
+      setCoverFile(null)
+      if (coverPreview) URL.revokeObjectURL(coverPreview)
+      setCoverPreview(null)
+    }
+    if (!needsPdf && pdfFile) {
+      setPdfFile(null)
+      if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
+      setPdfPreviewUrl(null)
+    }
+  }, [needsCover, needsPdf])
 
   function handleCoverChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] || null
@@ -273,7 +301,8 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!pdfFile) { setError('Sélectionne un fichier PDF'); return }
+    if (needsPdf && !pdfFile) { setError('Sélectionne un fichier PDF'); return }
+    if (needsCover && !coverFile) { setError("Sélectionne une image de couverture"); return }
     setError(null)
     setSuccess(null)
     setIsLoading(true)
@@ -284,9 +313,9 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
     formData.append('subject', subject)
     formData.append('level', level)
     formData.append('doc_type', docType)
-    formData.append('file', pdfFile)
-    if (coverFile) formData.append('cover_image', coverFile)
-    if (docType === 'ANNALES') {
+    if (needsPdf && pdfFile) formData.append('file', pdfFile)
+    if (needsCover && coverFile) formData.append('cover_image', coverFile)
+    if (needsCover) {
       const validContacts = contacts.filter(c => c.trim() !== '')
       if (validContacts.length > 0) {
         formData.append('annales_contacts', JSON.stringify(validContacts))
@@ -312,7 +341,7 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
       <div className="td-page-header">
         <div>
           <h1 className="td-page-title">Uploader un document</h1>
-          <p className="td-page-sub">Remplissez les informations et sélectionnez votre fichier PDF</p>
+          <p className="td-page-sub">Choisissez d'abord un type, le formulaire s'adapte automatiquement</p>
         </div>
       </div>
       <div className="td-upload-layout">
@@ -357,26 +386,29 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
               </div>
             </div>
 
-            <div className="td-field">
-              <label className="td-label">Image de couverture <span className="td-optional">(optionnel)</span></label>
-              <label className="td-cover-drop">
-                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleCoverChange} style={{ display: 'none' }} />
-                {coverPreview ? (
-                  <div className="td-cover-preview-wrap">
-                    <img src={coverPreview} alt="Aperçu couverture" className="td-cover-preview-img" />
-                    <span className="td-cover-change-hint">Cliquer pour changer</span>
-                  </div>
-                ) : (
-                  <div className="td-file-placeholder">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    <span>Cliquer pour ajouter une image de couverture</span>
-                    <span className="td-file-hint">JPG, PNG ou WEBP</span>
-                  </div>
-                )}
-              </label>
-            </div>
+            {needsCover && (
+              <div className="td-field">
+                <label className="td-label">Image de couverture</label>
+                <p className="td-field-hint">Pour une annale, seule une photo de couverture est nécessaire.</p>
+                <label className="td-cover-drop">
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleCoverChange} style={{ display: 'none' }} />
+                  {coverPreview ? (
+                    <div className="td-cover-preview-wrap">
+                      <img src={coverPreview} alt="Aperçu couverture" className="td-cover-preview-img" />
+                      <span className="td-cover-change-hint">Cliquer pour changer</span>
+                    </div>
+                  ) : (
+                    <div className="td-file-placeholder">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                      <span>Cliquer pour ajouter une image de couverture</span>
+                      <span className="td-file-hint">JPG, PNG ou WEBP</span>
+                    </div>
+                  )}
+                </label>
+              </div>
+            )}
 
-            {docType === 'ANNALES' && (
+            {needsCover && (
               <div className="td-field">
                 <label className="td-label">Numéros de contact pour acquérir</label>
                 <p className="td-field-hint">Les élèves verront ces numéros sur la carte pour vous contacter.</p>
@@ -413,33 +445,35 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
               </div>
             )}
 
-            <div className="td-field">
-              <label className="td-label">Fichier PDF</label>
-              <label className="td-file-drop">
-                <input type="file" accept=".pdf" onChange={handlePdfChange} required style={{ display: 'none' }} />
-                {pdfFile ? (
-                  <div className="td-file-selected">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    <span>{pdfFile.name}</span>
-                    <span className="td-file-size">{(pdfFile.size / 1024).toFixed(0)} KB</span>
-                  </div>
-                ) : (
-                  <div className="td-file-placeholder">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    <span>Cliquer pour sélectionner un PDF</span>
-                    <span className="td-file-hint">Seuls les fichiers .pdf sont acceptés</span>
-                  </div>
-                )}
-              </label>
-            </div>
+            {needsPdf && (
+              <div className="td-field">
+                <label className="td-label">Fichier PDF</label>
+                <label className="td-file-drop">
+                  <input type="file" accept=".pdf" onChange={handlePdfChange} style={{ display: 'none' }} />
+                  {pdfFile ? (
+                    <div className="td-file-selected">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <span>{pdfFile.name}</span>
+                      <span className="td-file-size">{(pdfFile.size / 1024).toFixed(0)} KB</span>
+                    </div>
+                  ) : (
+                    <div className="td-file-placeholder">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      <span>Cliquer pour sélectionner un PDF</span>
+                      <span className="td-file-hint">Seuls les fichiers .pdf sont acceptés</span>
+                    </div>
+                  )}
+                </label>
+              </div>
+            )}
 
-            <button className="td-btn-submit" type="submit" disabled={isLoading}>
+            <button className="td-btn-submit" type="submit" disabled={isLoading || !docType}>
               {isLoading ? 'Publication en cours…' : 'Publier le document'}
             </button>
           </form>
         </div>
 
-        {pdfPreviewUrl && (
+        {needsPdf && pdfPreviewUrl && (
           <div className="td-preview-card">
             <p className="td-preview-title">Aperçu PDF</p>
             <div className="td-preview-pdf">

@@ -80,7 +80,7 @@ def upload_document(
     level: str = Form(...),
     doc_type: str = Form(...),
     annales_contacts: Optional[str] = Form(None),
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
     cover_image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user=Depends(require_teacher)
@@ -91,13 +91,22 @@ def upload_document(
         raise HTTPException(status_code=400, detail="Niveau invalide")
     if doc_type not in DOC_TYPES:
         raise HTTPException(status_code=400, detail="Type invalide")
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Seuls les fichiers PDF sont acceptés")
 
-    filename = f"{uuid.uuid4()}.pdf"
-    file_path = os.path.join(UPLOAD_DIR, filename)
-    with open(file_path, "wb") as f:
-        f.write(file.file.read())
+    if doc_type == "ANNALES":
+        if not cover_image or not cover_image.filename:
+            raise HTTPException(status_code=400, detail="Une image de couverture est obligatoire pour une annale")
+    else:
+        if not file or not file.filename:
+            raise HTTPException(status_code=400, detail="Un fichier PDF est obligatoire")
+        if not file.filename.endswith(".pdf"):
+            raise HTTPException(status_code=400, detail="Seuls les fichiers PDF sont acceptés")
+
+    file_path = None
+    if file and file.filename:
+        filename = f"{uuid.uuid4()}.pdf"
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        with open(file_path, "wb") as f:
+            f.write(file.file.read())
 
     cover_path = None
     if cover_image and cover_image.filename:
@@ -133,7 +142,6 @@ def upload_document(
     db.commit()
     db.refresh(doc)
     return doc_to_out(doc)
-
 
 @router.get("/{doc_id}/cover")
 def get_cover(
@@ -176,6 +184,8 @@ def download_document(
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document introuvable")
+    if not doc.file_path:
+        raise HTTPException(status_code=404, detail="Aucun fichier disponible pour ce document")
     if not os.path.exists(doc.file_path):
         raise HTTPException(status_code=404, detail="Fichier introuvable sur le serveur")
     return FileResponse(doc.file_path, media_type="application/pdf", filename=f"{doc.title}.pdf")
