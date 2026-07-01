@@ -34,6 +34,49 @@ input, select, textarea {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
+.phone-input-wrap {
+  display: flex;
+  align-items: stretch;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.phone-input-wrap:focus-within {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+.phone-input-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 14.5px;
+  font-weight: 600;
+  border-right: 1.5px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.phone-input-wrap input {
+  border: none;
+  outline: none;
+  flex: 1;
+  min-width: 0;
+  padding: 10px 13px;
+  font-size: 14.5px;
+  color: #0f172a;
+  background: transparent;
+  font-family: inherit;
+}
+
+.phone-input-wrap input::placeholder {
+  color: #94a3b8;
+}
+
 .img-lightbox-overlay {
   position: fixed;
   inset: 0;

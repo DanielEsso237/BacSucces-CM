@@ -143,6 +143,7 @@ def upload_document(
     db.refresh(doc)
     return doc_to_out(doc)
 
+
 @router.get("/{doc_id}/cover")
 def get_cover(
     doc_id: int,

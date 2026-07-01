@@ -5,8 +5,9 @@ import type { Document, Filters } from '../api/documents'
 import { Document as PDFDocument, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
-import '../styles/teacher.css'
+import PhoneInput, { toFullCameroonPhone, stripCameroonPrefix } from '../components/PhoneInput'
 import ImageLightbox from '../components/ImageLightbox'
+import '../styles/teacher.css'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -22,29 +23,6 @@ function docTypeMeta(type: string) {
     case 'CORRECTION': return { label: 'Correction', cls: 'chip-correction' }
     default: return { label: type, cls: 'chip-exam' }
   }
-}
-
-function CoverPlaceholder({ type }: { type: string }) {
-  const colors: Record<string, { bg: string; fg: string }> = {
-    EXAM: { bg: '#fef2f2', fg: '#991b1b' },
-    ANNALES: { bg: '#ede9fe', fg: '#4c1d95' },
-    CORRECTION: { bg: '#f0fdfa', fg: '#0f766e' },
-  }
-  const c = colors[type] ?? { bg: '#f1f5f9', fg: '#64748b' }
-  return (
-    <div className="td-card-cover td-card-cover-placeholder" style={{ background: c.bg }}>
-      {type === 'EXAM' && (
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={c.fg} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-      )}
-      {type === 'ANNALES' && (
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={c.fg} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-      )}
-      {type === 'CORRECTION' && (
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={c.fg} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-      )}
-      <span style={{ fontSize: 11, fontWeight: 600, color: c.fg, marginTop: 8, opacity: 0.7 }}>Pas d'image</span>
-    </div>
-  )
 }
 
 async function downloadWithAuth(docId: number, title: string, token: string) {
@@ -83,6 +61,8 @@ function TeacherDashboard() {
             Uploader un document
           </button>
         </nav>
+
+        {/* Lien WhatsApp corrigé */}
         <a
           href="https://chat.whatsapp.com/HhDBK5j5f9sCsiYxrD8VUj?s=sh&p=a&ilr=0&amv=2"
           target="_blank"
@@ -106,6 +86,7 @@ function TeacherDashboard() {
           </button>
         </div>
       </aside>
+
       <main className="td-main">
         {tab === 'docs' && token && user && (
           <MesDocuments token={token} userId={user.id} onUpload={() => setTab('upload')} />
@@ -177,12 +158,10 @@ function DocCard({ doc, token }: { doc: Document; token: string }) {
 
   return (
     <article className="td-card">
-      {doc.has_cover ? (
+      {doc.doc_type === 'ANNALES' && doc.has_cover && (
         <div className="td-card-cover">
           <img src={coverUrl(doc.id, token)} alt="" className="td-card-cover-img" />
         </div>
-      ) : (
-        <CoverPlaceholder type={doc.doc_type} />
       )}
       <div className="td-card-body">
         <div className="td-card-top">
@@ -265,12 +244,15 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
       if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
       setPdfPreviewUrl(null)
     }
-  }, [needsCover, needsPdf])
+  }, [needsCover, needsPdf, coverFile, pdfFile, coverPreview, pdfPreviewUrl])
 
   function handleCoverChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] || null
     if (!f) return
-    if (!f.type.startsWith('image/')) { setError('Image de couverture : JPG, PNG ou WEBP uniquement'); return }
+    if (!f.type.startsWith('image/')) { 
+      setError('Image de couverture : JPG, PNG ou WEBP uniquement'); 
+      return 
+    }
     setCoverFile(f)
     setError(null)
     if (coverPreview) URL.revokeObjectURL(coverPreview)
@@ -279,7 +261,10 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
 
   function handlePdfChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] || null
-    if (f && f.type !== 'application/pdf') { setError('Seuls les fichiers PDF sont acceptés'); return }
+    if (f && f.type !== 'application/pdf') { 
+      setError('Seuls les fichiers PDF sont acceptés'); 
+      return 
+    }
     setPdfFile(f)
     setError(null)
     if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
@@ -291,11 +276,12 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
   function updateContact(i: number, val: string) { setContacts(prev => prev.map((c, idx) => idx === i ? val : c)) }
   function useMyNumber() {
     if (!teacherContact) return
+    const digits = stripCameroonPrefix(teacherContact)
     setContacts(prev => {
-      const already = prev.includes(teacherContact)
+      const already = prev.includes(digits)
       if (already) return prev
       const withoutEmpty = prev.filter(c => c.trim() !== '')
-      return [...withoutEmpty, teacherContact]
+      return [...withoutEmpty, digits]
     })
   }
 
@@ -316,7 +302,7 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
     if (needsPdf && pdfFile) formData.append('file', pdfFile)
     if (needsCover && coverFile) formData.append('cover_image', coverFile)
     if (needsCover) {
-      const validContacts = contacts.filter(c => c.trim() !== '')
+      const validContacts = contacts.filter(c => c.trim() !== '').map(c => toFullCameroonPhone(c))
       if (validContacts.length > 0) {
         formData.append('annales_contacts', JSON.stringify(validContacts))
       }
@@ -415,13 +401,7 @@ function UploadForm({ token, teacherContact, onSuccess }: { token: string; teach
                 <div className="td-contacts-list">
                   {contacts.map((c, i) => (
                     <div key={i} className="td-contact-row">
-                      <input
-                        className="td-input"
-                        type="tel"
-                        value={c}
-                        onChange={e => updateContact(i, e.target.value)}
-                        placeholder="+237 6XX XXX XXX"
-                      />
+                      <PhoneInput className="td-input" value={c} onChange={val => updateContact(i, val)} />
                       {contacts.length > 1 && (
                         <button type="button" className="td-contact-remove" onClick={() => removeContact(i)} title="Supprimer">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>

@@ -5,8 +5,8 @@ import type { Document, Filters } from '../api/documents'
 import { Document as PDFDocument, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
-import '../styles/student.css'
 import ImageLightbox from '../components/ImageLightbox'
+import '../styles/student.css'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -93,29 +93,6 @@ function docTypeMeta(type: string) {
   }
 }
 
-function CoverPlaceholder({ type }: { type: string }) {
-  const colors: Record<string, { bg: string; fg: string }> = {
-    EXAM: { bg: '#fef2f2', fg: '#991b1b' },
-    ANNALES: { bg: '#ede9fe', fg: '#4c1d95' },
-    CORRECTION: { bg: '#f0fdfa', fg: '#0f766e' },
-  }
-  const c = colors[type] ?? { bg: '#f1f5f9', fg: '#64748b' }
-  return (
-    <div className="sd-card-cover sd-card-cover-placeholder" style={{ background: c.bg }}>
-      {type === 'EXAM' && (
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={c.fg} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      )}
-      {type === 'ANNALES' && (
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={c.fg} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-      )}
-      {type === 'CORRECTION' && (
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={c.fg} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-      )}
-      <span style={{ fontSize: 10.5, fontWeight: 600, color: c.fg, marginTop: 6, opacity: 0.6 }}>Pas d'image</span>
-    </div>
-  )
-}
-
 function StudentDashboard() {
   const { user, token, logout } = useAuth()
   const [documents, setDocuments] = useState<Document[]>([])
@@ -160,7 +137,12 @@ function StudentDashboard() {
   }
 
   const hasFilters = !!(subject || level || docType || search)
-  function resetFilters() { setSubject(''); setLevel(''); setDocType(''); setSearch('') }
+  function resetFilters() { 
+    setSubject(''); 
+    setLevel(''); 
+    setDocType(''); 
+    setSearch('') 
+  }
 
   async function handleToggleOffline(doc: Document) {
     if (!token) return
@@ -222,6 +204,8 @@ function StudentDashboard() {
           </div>
           {hasFilters && <button className="sd-reset-btn" onClick={resetFilters}>Réinitialiser</button>}
         </div>
+
+        {/* Lien WhatsApp corrigé */}
         <a
           href="https://chat.whatsapp.com/HhDBK5j5f9sCsiYxrD8VUj?s=sh&p=a&ilr=0&amv=2"
           target="_blank"
@@ -293,7 +277,7 @@ function StudentDashboard() {
                     token={token!}
                     isOffline={offlineIds.has(doc.id)}
                     onRead={() => setSelected(doc)}
-                    />
+                  />
                 ))}
               </div>
             )}
@@ -313,12 +297,10 @@ function DocCard({ doc, token, isOffline, onRead }: {
 
   return (
     <article className="sd-card">
-      {doc.has_cover ? (
+      {doc.doc_type === 'ANNALES' && doc.has_cover && (
         <div className="sd-card-cover">
           <img src={coverUrl(doc.id, token)} alt="" className="sd-card-cover-img" />
         </div>
-      ) : (
-        <CoverPlaceholder type={doc.doc_type} />
       )}
 
       <div className="sd-card-body">
