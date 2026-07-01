@@ -20,8 +20,20 @@ function RegisterTeacher() {
     setError(null)
     setSuccess(null)
     setIsLoading(true)
+
     try {
-      await registerTeacher({ email, full_name: fullName, password, teacher_justification: justification, contact: toFullCameroonPhone(contactDigits) || undefined })
+      const contact = contactDigits.trim() 
+        ? toFullCameroonPhone(contactDigits) 
+        : undefined
+
+      await registerTeacher({ 
+        email, 
+        full_name: fullName, 
+        password, 
+        teacher_justification: justification, 
+        contact 
+      })
+
       setSuccess('Demande envoyée ! Un administrateur validera ton compte sous 48h. Redirection…')
       setTimeout(() => navigate('/login'), 3000)
     } catch (err: any) {
@@ -90,7 +102,16 @@ function RegisterTeacher() {
               <label className="auth-label">
                 Contact <span style={{ fontWeight: 400, fontSize: 12, color: '#94a3b8' }}>(optionnel)</span>
               </label>
-              <PhoneInput className="auth-input" value={contactDigits} onChange={setContactDigits} />
+              <PhoneInput 
+                className="auth-input" 
+                value={contactDigits} 
+                onChange={setContactDigits}
+                maxLength={9}
+                placeholder="690 123 456"
+              />
+              <p className="auth-hint" style={{ marginTop: 6, fontSize: 13, color: '#64748b' }}>
+                Numéro à 9 chiffres (exemple : 690123456)
+              </p>
             </div>
 
             <div className="auth-field">

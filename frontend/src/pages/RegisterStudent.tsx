@@ -19,8 +19,19 @@ function RegisterStudent() {
     setError(null)
     setSuccess(null)
     setIsLoading(true)
+
     try {
-      await registerStudent({ email, full_name: fullName, password, contact: toFullCameroonPhone(contactDigits) || undefined })
+      const contact = contactDigits.trim() 
+        ? toFullCameroonPhone(contactDigits) 
+        : undefined
+
+      await registerStudent({ 
+        email, 
+        full_name: fullName, 
+        password, 
+        contact 
+      })
+
       setSuccess('Compte créé ! Redirection vers la connexion…')
       setTimeout(() => navigate('/login'), 2000)
     } catch (err: any) {
@@ -89,7 +100,16 @@ function RegisterStudent() {
               <label className="auth-label">
                 Contact <span style={{ fontWeight: 400, fontSize: 12, color: '#94a3b8' }}>(optionnel)</span>
               </label>
-              <PhoneInput className="auth-input" value={contactDigits} onChange={setContactDigits} />
+              <PhoneInput 
+                className="auth-input" 
+                value={contactDigits} 
+                onChange={setContactDigits}
+                maxLength={9}
+                placeholder="690 123 456"
+              />
+              <p className="auth-hint" style={{ marginTop: 6, fontSize: 13, color: '#64748b' }}>
+                Numéro à 9 chiffres (exemple : 690123456)
+              </p>
             </div>
 
             <button className="auth-submit" type="submit" disabled={isLoading}>

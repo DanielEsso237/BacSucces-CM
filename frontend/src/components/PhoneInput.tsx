@@ -4,21 +4,21 @@ interface Props {
   required?: boolean
   className?: string
   placeholder?: string
+  maxLength?: number   // ← Ajouté
 }
 
-export function formatCameroonDigits(raw: string): string {
-  const digits = raw.replace(/\D/g, '').slice(0, 9)
+export function formatCameroonDigits(raw: string, max = 9): string {
+  const digits = raw.replace(/\D/g, '').slice(0, max)
   const parts: string[] = []
   if (digits.length > 0) parts.push(digits.slice(0, 3))
-  if (digits.length > 3) parts.push(digits.slice(3, 5))
-  if (digits.length > 5) parts.push(digits.slice(5, 7))
-  if (digits.length > 7) parts.push(digits.slice(7, 9))
+  if (digits.length > 3) parts.push(digits.slice(3, 6))
+  if (digits.length > 6) parts.push(digits.slice(6, 9))
   return parts.join(' ')
 }
 
 export function toFullCameroonPhone(formatted: string): string {
   const digits = formatted.replace(/\D/g, '')
-  return digits ? `+237 ${formatted}` : ''
+  return digits.length === 9 ? `+237${digits}` : ''
 }
 
 export function stripCameroonPrefix(full: string | null | undefined): string {
@@ -28,9 +28,17 @@ export function stripCameroonPrefix(full: string | null | undefined): string {
   return formatCameroonDigits(local)
 }
 
-function PhoneInput({ value, onChange, required, className, placeholder }: Props) {
+function PhoneInput({
+  value,
+  onChange,
+  required,
+  className,
+  placeholder = '6XX XXX XXX',
+  maxLength = 9
+}: Props) {
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    onChange(formatCameroonDigits(e.target.value))
+    const formatted = formatCameroonDigits(e.target.value, maxLength)
+    onChange(formatted)
   }
 
   return (
@@ -41,10 +49,10 @@ function PhoneInput({ value, onChange, required, className, placeholder }: Props
         type="tel"
         value={value}
         onChange={handleChange}
-        placeholder={placeholder ?? '6XX XX XX XX'}
+        placeholder={placeholder}
         required={required}
         inputMode="numeric"
-        maxLength={11}
+        maxLength={13} // +237 + 9 chiffres + espaces
       />
     </div>
   )
