@@ -26,7 +26,7 @@ class Document(Base):
     subject = Column(String, nullable=False)
     level = Column(String, nullable=False)
     doc_type = Column(String, nullable=False)
-    file_path = Column(String, nullable=False)
+    file_path = Column(String, nullable=True)
     cover_image_path = Column(String, nullable=True)
     annales_contacts = Column(Text, nullable=True)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)

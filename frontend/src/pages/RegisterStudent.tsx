@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { registerStudent } from '../api/auth'
+import PhoneInput, { toFullCameroonPhone } from '../components/PhoneInput'
 import '../styles/auth.css'
 
 function RegisterStudent() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [contact, setContact] = useState('')
+  const [contactDigits, setContactDigits] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -19,7 +20,7 @@ function RegisterStudent() {
     setSuccess(null)
     setIsLoading(true)
     try {
-      await registerStudent({ email, full_name: fullName, password, contact: contact || undefined })
+      await registerStudent({ email, full_name: fullName, password, contact: toFullCameroonPhone(contactDigits) || undefined })
       setSuccess('Compte créé ! Redirection vers la connexion…')
       setTimeout(() => navigate('/login'), 2000)
     } catch (err: any) {
@@ -88,14 +89,7 @@ function RegisterStudent() {
               <label className="auth-label">
                 Contact <span style={{ fontWeight: 400, fontSize: 12, color: '#94a3b8' }}>(optionnel)</span>
               </label>
-              <input
-                className="auth-input"
-                type="tel"
-                value={contact}
-                onChange={e => setContact(e.target.value)}
-                placeholder="Ex : +237 6XX XXX XXX"
-                autoComplete="tel"
-              />
+              <PhoneInput className="auth-input" value={contactDigits} onChange={setContactDigits} />
             </div>
 
             <button className="auth-submit" type="submit" disabled={isLoading}>
